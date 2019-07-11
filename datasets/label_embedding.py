@@ -17,18 +17,18 @@ def main(args):
 	if args.embed_type == 'elmo':
 
 		# clean label text, which is dataset dependent!
-		# save emlo embedding to disk
+		# save elmo embedding to disk
 		elmo_layer_path = "{}.elmo_layers.hdf5".format(args.dataset)
 		if not os.path.exists(elmo_layer_path):
 			cmd="python clean_label_text.py --dataset {} > ./label_text.txt".format(args.dataset)
 			print(cmd)
 			os.system(cmd)
-			
+
 			cmd="allennlp elmo ./label_text.txt {} --all --cuda-device 0".format(elmo_layer_path)
 			print(cmd)
 			os.system(cmd)
-		 
-		# load emlo embedding and generate sentence embedding
+
+		# load elmo embedding and generate sentence embedding
 		# by mean pooling over time and concate all three layers embedding
 		h5py_file = h5py.File(elmo_layer_path, 'r')
 		num_label = len(h5py_file) - 1
@@ -38,7 +38,7 @@ def main(args):
 			embedding = np.mean(embedding, axis=1).reshape(-1)
 			label_embedding[idx] = embedding
 		label_embedding = sp.csr_matrix(label_embedding)
-	
+
 	elif args.embed_type == 'pifa':
 		# load TF-IDF and label matrix
 		X = sp.load_npz("./{}/X.trn.npz".format(args.dataset))
@@ -57,7 +57,7 @@ def main(args):
 	# save label embedding
 	print('label_embedding', type(label_embedding), label_embedding.shape)
 	label_embedding_path = "{}/L.{}.npz".format(args.dataset, args.embed_type)
-	sp.save_npz(label_embedding_path, label_embedding)	
+	sp.save_npz(label_embedding_path, label_embedding)
 
 
 

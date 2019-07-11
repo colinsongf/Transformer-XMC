@@ -1,7 +1,7 @@
 # eXtreme Multi-label Text Classification with BERT
 
 This is a README for the experimental code in our paper
->[X-BERT: eXtreme Multi-label Text Classification with BERT](#)
+>[X-BERT: eXtreme Multi-label Text Classification with BERT](https://arxiv.org/pdf/1905.02331.pdf)
 
 >Wei-Cheng Chang, Hsiang-Fu Yu, Kai Zhong, Yiming Yang, Inderjit Dhillon
 
@@ -25,6 +25,7 @@ This is a README for the experimental code in our paper
 	> source activate xbert-env
 	> (xbert-env) conda install scikit-learn
 	> (xbert-env) conda install pytorch=0.4.1 cuda90 -c pytorch
+	> (xbert-env) pip install urllib3==1.24
 	> (xbert-env) pip install pytorch-pretrained-bert==0.6.2
 	> (xbert-env) pip install allennlp==0.8.4
 	> (xbert-env) pip install -e .
@@ -61,10 +62,10 @@ Change directory into ./pretrained_models folder, download and unzip models for 
 	
 ```bash
 cd ./pretrained_models
-bash download-model.sh Eurlex-4K
-bash download-model.sh Wiki10-31K
-bash download-model.sh AmazonCat-13K
-bash download-model.sh Wiki-500K
+bash download-models.sh Eurlex-4K
+bash download-models.sh Wiki10-31K
+bash download-models.sh AmazonCat-13K
+bash download-models.sh Wiki-500K
 cd ../
 ```
 
@@ -169,7 +170,7 @@ Before training, we need to generate preprocessed data as binary pickle files.
 ```bash
 OUTPUT_DIR=save_models/${DATASET}/${LABEL_EMB}-a${ALGO}-s${SEED}
 mkdir -p $OUTPUT_DIR/data-bin-${MATCHER}
-CUDA_VISIBLE_DEVICES=GPUS python -m xbert.preprocess \
+CUDA_VISIBLE_DEVICES=${GPUS} python -m xbert.preprocess \
   -m ${MATCHER} \
   -i datasets/${DATASET} \
   -c ${OUTPUT_DIR}/indexer/code.npz \
@@ -211,7 +212,7 @@ CUDA_VISIBLE_DEVICES=${GPUS} python -u -m xbert.matcher.bert \
   --num_train_epochs ${NUM_TRAIN_EPOCHS} \
   --log_interval ${LOG_INTERVAL} \
   --eval_interval ${EVAL_INTERVAL} \
-  > |& tee ${OUTPUT_DIR}/matcher/${MATCHER}.log
+  > ${OUTPUT_DIR}/matcher/${MATCHER}.log
 ```
 
 #### Training Xttention
@@ -239,7 +240,7 @@ CUDA_VISIBLE_DEVICES=${GPUS} python -u -m xbert.matcher.attention \
   --num_train_epochs ${NUM_TRAIN_EPOCHS} \
   --log_interval ${LOG_INTERVAL} \
   --eval_interval ${EVAL_INTERVAL} \
-  > |& tee ${OUTPUT_DIR}/matcher/${MATCHER}.log
+  > ${OUTPUT_DIR}/matcher/${MATCHER}.log
 ```	
 
 
