@@ -427,7 +427,9 @@ class AttentionMatcher(object):
                 'num_clusters': NUM_CLUSTER, 'vocab_size': NUM_TOKEN,
                 'NUM_LABEL': NUM_LABEL, 'NUM_CLUSTER': NUM_CLUSTER, 'C_val': C_val, 'C_tst': C_tst}
 
-    def prepare_attention_model(self, args, num_clusters, vocab_size, arch_name='self-attend', loss_func='l2-hinge'):
+    def prepare_attention_model(self, args, num_clusters, vocab_size,
+        arch_name='self-attend', loss_func='l2-hinge', init_checkpoint_dir=None):
+        
         ''' Initialize/Load an X-attention model for sequeence classification'''
         global device
         if arch_name == 'conv1d':
@@ -456,9 +458,12 @@ class AttentionMatcher(object):
         else:
             raise NotImplementedError('unknown loss function {}'.format(loss_func))
 
-        pretrained_path = path.join(args.init_checkpoint_dir, 'pytorch_model.bin')
-        if path.exists(pretrained_path):
-            model.load_state_dict(torch.load(pretrained_path))
+        if init_checkpoint_dir is not None:
+            pretrained_path = path.join(args.init_checkpoint_dir, 'pytorch_model.bin')
+            if path.exists(pretrained_path):
+                model.load_state_dict(torch.load(pretrained_path))
+            else:
+                raise ValueError('pretrained_path does not exist: {}'.format(pretrained_path))
 
         # overwrite
         self.model = model
@@ -478,7 +483,8 @@ class AttentionMatcher(object):
         arch_name = matcher_json_dict['arch_name']
         self.prepare_attention_model(args, num_clusters, vocab_size,
                                      arch_name=arch_name,
-                                     loss_func=loss_func)
+                                     loss_func=loss_func,
+                                     init_checkpoint_dir=args.init_checkpoint_dir)
 
     def save(self, args):
         model_to_save = self.model

@@ -85,19 +85,19 @@ def main(args):
         pickle.dump(vectorizer, fout, protocol=pickle.HIGHEST_PROTOCOL)
 	
 	# save X and Y
-	def save_npz(X, Y, set_flag='trn'):
-		sp.save_npz('{}/X.{}.npz'.format(args.input_data_dir, set_flag), X)
-		sp.save_npz('{}/Y.{}.npz'.format(args.input_data_dir, set_flag), Y)
+    def save_npz(X, Y, set_flag='trn'):
+        sp.save_npz('{}/X.{}.npz'.format(args.input_data_dir, set_flag), X)
+        sp.save_npz('{}/Y.{}.npz'.format(args.input_data_dir, set_flag), Y)
     
 	# write file back into libsvm format
     Y_ret_trn = convert_label_to_Y(trn_labels, K_in=None)
-    save_npz(X_ret_trn, Y_ret_trn, , set_flag='trn')
+    save_npz(X_ret_trn, Y_ret_trn, set_flag='trn')
 
     Y_ret_val = convert_label_to_Y(val_labels, K_in=Y_ret_trn.shape[1])
-    save_npz(X_ret_val, Y_ret_val, , set_flag='val')
+    save_npz(X_ret_val, Y_ret_val, set_flag='val')
 
     Y_ret_tst = convert_label_to_Y(tst_labels, K_in=Y_ret_trn.shape[1])
-    save_npz(X_ret_tst, Y_ret_tst, , set_flag='tst')
+    save_npz(X_ret_tst, Y_ret_tst, set_flag='tst')
 
 
 if __name__ == '__main__':
