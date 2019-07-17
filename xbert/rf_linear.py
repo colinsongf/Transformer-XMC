@@ -672,9 +672,9 @@ class HierarchicalMLModel(object):
 
 class Parabel(object):
     @staticmethod
-    def load_tree(path_to_file):
+    def load_tree(path_to_file, feat_st_id=1, remove_terms=2):
         with open(path_to_file, "r") as fin:
-            nr_features = int(fin.readline()) - 2 # remove the zero and bias term
+            nr_features = int(fin.readline()) - remove_terms # remove the zero and bias term
             nr_labels = int(fin.readline())
             nr_nodes = int(fin.readline())
             max_depth = int(sp.log2(nr_nodes + 1))
@@ -704,7 +704,7 @@ class Parabel(object):
                         for iv in fin.readline().strip().split():
                             iv = iv.split(':')
                             col = y
-                            row = int(iv[0]) - 1
+                            row = int(iv[0]) - feat_st_id
                             if row >= nr_features:
                                 continue
                             v = float(iv[1])

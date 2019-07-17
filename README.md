@@ -136,33 +136,6 @@ python -m xbert.indexer \
 - `DEPTH`: The depth of hierarchical 2-means
 - `SEED`: random seed
 
-#### Linear Ranker training
-An example usage would be:
-
-```bash
-OUTPUT_DIR=save_models/${DATASET}/${LABEL_EMB}-a${ALGO}-s${SEED}
-mkdir -p $OUTPUT_DIR/ranker
-python -m xbert.ranker train \
-  -x datasets/${DATASET}/X.trn.npz \
-  -y datasets/${DATASET}/Y.trn.npz \
-  -c ${OUTPUT_DIR}/indexer/code.npz \
-  -o ${OUTPUT_DIR}/ranker
-```
-
-#### Linear Ranker Prediction
-An example usage would be:
-
-```bash
-OUTPUT_DIR=save_models/${DATASET}/${LABEL_EMB}-a${ALGO}-s${SEED}
-mkdir -p $OUTPUT_DIR/ranker
-python -m xbert.ranker predict \
-  -m ${OUTPUT_DIR}/ranker \
-  -x datasets/${DATASET}/X.tst.npz \
-  -y datasets/${DATASET}/Y.tst.npz \
-  -c ${OUTPUT_DIR}/matcher/${MATCHER}/C_eval_pred.npz \
-  -o ${OUTPUT_DIR}/ranker/tst.prediction.npz
-```
-
 ### Neural Matching via XBERT or Xttention
 #### Create Data Binary as Preprocessing
 Before training, we need to generate preprocessed data as binary pickle files.
@@ -215,6 +188,7 @@ CUDA_VISIBLE_DEVICES=${GPUS} python -u -m xbert.matcher.bert \
   > ${OUTPUT_DIR}/matcher/${MATCHER}.log
 ```
 
+
 #### Training Xttention
 Set hyper-parameters properly, an example would be
 ``` bash
@@ -243,6 +217,49 @@ CUDA_VISIBLE_DEVICES=${GPUS} python -u -m xbert.matcher.attention \
   > ${OUTPUT_DIR}/matcher/${MATCHER}.log
 ```	
 
+#### Predicting Indices 
+Predict the indices using trained XBERT or Xttention model.
+``` bash
+OUTPUT_DIR=save_models/${DATASET}/${LABEL_EMB}-a${ALGO}-s${SEED}
+CUDA_VISIBLE_DEVICES=${GPUS} python -u -m xbert.matcher.bert \
+  -i ${OUTPUT_DIR}/data-bin-${MATCHER}/data_dict.pt \
+  -o ${OUTPUT_DIR}/matcher/${MATCHER} \
+  --bert_model bert-base-uncased \
+  --do_eval \
+  --init_checkpoint_dir ${OUTPUT_DIR}/matcher/${MATCHER}
+```
+The prediction output will be stored in 
+```bash
+${OUTPUT_DIR}/matcher/${MATCHER}/C_eval_pred.npz
+```
+
+### Ranking
+#### Linear Ranker training
+An example usage would be:
+
+```bash
+OUTPUT_DIR=save_models/${DATASET}/${LABEL_EMB}-a${ALGO}-s${SEED}
+mkdir -p $OUTPUT_DIR/ranker
+python -m xbert.ranker train \
+  -x datasets/${DATASET}/X.trn.npz \
+  -y datasets/${DATASET}/Y.trn.npz \
+  -c ${OUTPUT_DIR}/indexer/code.npz \
+  -o ${OUTPUT_DIR}/ranker
+```
+
+#### Linear Ranker Prediction
+An example usage would be:
+
+```bash
+OUTPUT_DIR=save_models/${DATASET}/${LABEL_EMB}-a${ALGO}-s${SEED}
+mkdir -p $OUTPUT_DIR/ranker
+python -m xbert.ranker predict \
+  -m ${OUTPUT_DIR}/ranker \
+  -x datasets/${DATASET}/X.tst.npz \
+  -y datasets/${DATASET}/Y.tst.npz \
+  -c ${OUTPUT_DIR}/matcher/${MATCHER}/C_eval_pred.npz \
+  -o ${OUTPUT_DIR}/ranker/tst.prediction.npz
+```
 
 ## Acknowledge
 
