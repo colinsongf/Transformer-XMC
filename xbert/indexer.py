@@ -259,6 +259,9 @@ def main(args):
     else:
         raise ValueError('label embedding path does not exist {}'.format(input_feat_path))
 
+    if not path.exists(output_code_dir):
+        os.makedirs(output_code_dir)
+
     # Indexing algorithm
     # C: nr_labels x nr_codes, stored in csr sparse matrix
     code = Indexer(feat_mat).gen(kdim=kdim, depth=depth, algo=algo, seed=seed, max_iter=max_iter, threads=threads)
@@ -273,7 +276,7 @@ def main(args):
     smat.save_npz('{}'.format(output_code_path), C, compressed=False)
     output_config_path = path.join(output_code_dir, 'config.json')
     with open(output_config_path, 'w') as fout:
-        json.dump(vars(args), fout)
+        fout.write(json.dumps(vars(args), indent=True))
 
 
 if __name__ == '__main__':

@@ -2,25 +2,12 @@
 
 import argparse
 import sys
-import os
-from os import path, system
-import time
-import collections
-import itertools
-import pickle
-import json
-import ctypes
-from ctypes import *
+from os import path
 
 import scipy as sp
 import scipy.sparse as smat
-from sklearn.preprocessing import normalize as sk_normalize
 
-import xbert.indexer as indexer
-import xbert.rf_util as rf_util
-import xbert.rf_linear as rf_linear
-from xbert.rf_util import PyMatrix
-from xbert.rf_linear import Data, MLProblem, Metrics, HierarchicalMLModel, ml_train
+from xbert.rf_linear import MLProblem, Metrics, HierarchicalMLModel, PostProcessor
 
 # solver_type
 solver_dict = {
@@ -36,7 +23,6 @@ solver_dict = {
 
 
 class LinearModel(object):
-
     def __init__(self, model=None):
         self.model = model
 
@@ -44,7 +30,7 @@ class LinearModel(object):
         return LinearModel(self.model[key])
 
     def __add__(self, other):
-        return LinearModel(self.model + other.model)
+        return LinearModel(self.model + other.model, self.bias)
 
     def save(self, model_folder):
         self.model.save(model_folder)
@@ -56,23 +42,34 @@ class LinearModel(object):
     @classmethod
     def train(cls, X, Y, C,
             mode='full-model',
-            hierarchical=True,
+            shallow=False,
             solver_type=solver_dict['L2R_L2LOSS_SVC_DUAL'],
-            Cp=1.0, Cn=1.0, threshold=0.1, max_iter=100, threads=-1):
-        if mode == 'full-model':
-            prob = MLProblem(X, Y, C)
-        elif mode == 'matcher':
-            assert C is not None
-            Y = Y.dot(C)
-            prob = MLProblem(X, Y)
+            Cp=1.0, Cn=1.0, threshold=0.1, max_iter=100, threads=-1, bias=-1.0):
+
+        if mode in ['full-model', 'matcher']:
+            if mode == 'full-model':
+                prob = MLProblem(X, Y, C, bias=bias)
+            elif mode == 'matcher':
+                assert C is not None
+                Y = Y.dot(C)
+                prob = MLProblem(X, Y, bias=bias)
+
+            hierarchical = True
+            min_labels = 2
+            if shallow:
+                if prob.C is None:
+                    min_labels = prob.Y.shape[1]
+                else:
+                    min_labels = prob.C.shape[1]
         elif mode == 'ranker':
             assert C is not None
-            prob = MLProblem(X, Y, C)
+            prob = MLProblem(X, Y, C, bias=bias)
             hierarchical=False
+            min_labels = 2
 
-        model = ml_train(prob,
+        model = HierarchicalMLModel.train(prob,
                          hierarchical=hierarchical,
-                         min_labels=2,
+                         min_labels=min_labels,
                          solver_type=solver_type,
                          Cp=Cp, Cn=Cn,
                          threshold=threshold,
@@ -80,14 +77,14 @@ class LinearModel(object):
                          max_iter=max_iter)
         return cls(model)
 
-    def predict(self, X, csr_codes=None, beam_size=10, only_topk=10):
-        cond_prob = True
+    def predict(self, X, csr_codes=None, beam_size=10, only_topk=10, cond_prob=True):
         pred_csr = self.model.predict(X,
                                       only_topk=only_topk,
                                       csr_codes=csr_codes,
                                       beam_size=beam_size,
                                       cond_prob=cond_prob)
         return pred_csr
+
 
 class SubCommand(object):
     def __init__(self):
@@ -101,20 +98,26 @@ class SubCommand(object):
     def add_arguments(parser):
         pass
 
-class LinearTrainCommand(SubCommand):
 
+class LinearTrainCommand(SubCommand):
     @staticmethod
     def run(args):
-        C = smat.load_npz(args.input_code_path)
+        if args.input_code_path.lower() == 'none':
+            C = None
+        else:
+            C = smat.load_npz(args.input_code_path)
         X = smat.load_npz(args.input_inst_feat)
         Y = smat.load_npz(args.input_inst_label)
 
         model = LinearModel.train(X, Y, C,
+                    mode='full-model',
+                    shallow=args.shallow,
                     solver_type=solver_dict[args.solver_type],
                     Cp=args.Cp,
                     Cn=args.Cn,
                     threshold=args.threshold,
                     threads=args.threads,
+                    bias=args.bias,
                     )
         model.save(args.output_ranker_folder)
 
@@ -140,6 +143,9 @@ class LinearTrainCommand(SubCommand):
         parser.add_argument("-o", "--output-ranker-folder", type=str, required=True, metavar="DIR",
                 help="directory for storing linear ranker")
 
+        parser.add_argument("-S", "--shallow", action="store_true",
+                help="perform shallow linear modeling instead of hierarchical linear modeling")
+
         parser.add_argument("-s", "--solver-type", type=str, default='L2R_L2LOSS_SVC_DUAL', metavar="SOLVER_STR",
                 help="{} (default L2R_L2LOSS_SVC_DUAL)".format(' | '.join(solver_dict.keys())))
 
@@ -149,12 +155,14 @@ class LinearTrainCommand(SubCommand):
         parser.add_argument("--Cn", type=float, default=1.0, metavar="VAL",
                 help="coefficient for negative class in the loss function (default 1.0)")
 
+        parser.add_argument("-B", "--bias", type=float, default=1.0, metavar="bias",
+                help="if bias > 0, instance x becomes [x; bias]; if <= 0, no bias term added (default 1.0)")
+
         parser.add_argument("-t", "--threshold", type=float, default=0.1, metavar="VAL",
-                help="threshold to sparsify the model weights (default 0.1)")
+                help="threshold to sparsity the model weights (default 0.1)")
 
         parser.add_argument("-n", "--threads", type=int, default=-1, metavar="INT",
-                help="number of threads to use (defautl -1 to denote all the CPUs)")
-
+                help="number of threads to use (default -1 to denote all the CPUs)")
 
 
 class LinearPredictCommand(SubCommand):
@@ -162,14 +170,19 @@ class LinearPredictCommand(SubCommand):
     def run(args):
         Xt = smat.load_npz(args.input_inst_feat)
         model = LinearModel.load(args.input_ranker_folder)
-        # input_csr_code is
-        # get only ranker part if csr_codes from a matcher is provided
-        if args.input_csr_code is not None and os.path.exists(args.input_csr_code):
-            csr_codes = smat.load_npz(args.input_csr_code)
+        # get only ranker part if predicted_csr_code from a matcher is provided
+        if args.predicted_csr_code is not None and path.exists(args.predicted_csr_code):
+            csr_codes = smat.load_npz(args.predicted_csr_code)
             model = model[-1]
         else:
             csr_codes = None
-        Yt_pred = model.predict(Xt, csr_codes=csr_codes, beam_size=args.beam_size, only_topk=args.only_topk)
+
+        cond_prob = PostProcessor.get(args.transform)
+        Yt_pred = model.predict(Xt,
+                                csr_codes=csr_codes,
+                                beam_size=args.beam_size,
+                                only_topk=args.only_topk,
+                                cond_prob=cond_prob)
         if args.input_inst_label is not None and path.exists(args.input_inst_label):
             Yt = smat.load_npz(args.input_inst_label) if args.input_inst_label else None
             metric = Metrics.generate(Yt, Yt_pred, topk=10)
@@ -199,11 +212,11 @@ class LinearPredictCommand(SubCommand):
         parser.add_argument("-o", "--output-path", type=str, required=True,
                 help="path to the npz file of output prediction (CSR)")
 
-        parser.add_argument("-c", "--input-csr-code", type=str, required=False,
+        parser.add_argument("-c", "--predicted-csr-code", type=str, required=False,
                 help="path to the npz file of the csr codes generated by the matcher")
 
-        parser.add_argument("-t", "--csr-code-transform", type=str, default='lpsvm-l2',
-                help="transform of csr codes generated by the matcher sigmoid | lpsvm-l2 | l2svm-l3 (default lpsvm-l2)")
+        parser.add_argument("-t", "--transform", type=str, default='l2-hinge',
+                help="transform of the ranker prediction to be multiplied by the input csr codes sigmoid | l1-hinge | l2-hinge | l3-hinge (default l2-hinge)")
 
         parser.add_argument("-k", "--only-topk", type=int, default=20,
                 help="number of top labels in the prediction")

@@ -7,7 +7,7 @@ from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.preprocessing import normalize
 import pickle
 import scipy.sparse as sp
-
+from xbert.rf_util import smat_util
 
 # mlc2seq format (each line):
 # l_1,..,l_k \t w_1 w_2 ... w_t
@@ -72,7 +72,7 @@ def main(args):
             label_list = list(map(int, label.split(',')))
             rows += [i] * len(label_list)
             cols += label_list
-            vals += [1] * len(label_list)
+            vals += [1.0] * len(label_list)
 
         K_out = max(cols) + 1 if K_in is None else K_in
         Y = sp.csr_matrix( (vals, (rows,cols)), shape=(len(labels),K_out) )
@@ -83,12 +83,13 @@ def main(args):
     out_file_name = '{}/vectorizer.pkl'.format(args.input_data_dir)
     with open(out_file_name, 'wb') as fout:
         pickle.dump(vectorizer, fout, protocol=pickle.HIGHEST_PROTOCOL)
-	
+
 	# save X and Y
     def save_npz(X, Y, set_flag='trn'):
+        X.sort_indices()
         sp.save_npz('{}/X.{}.npz'.format(args.input_data_dir, set_flag), X)
         sp.save_npz('{}/Y.{}.npz'.format(args.input_data_dir, set_flag), Y)
-    
+
 	# write file back into libsvm format
     Y_ret_trn = convert_label_to_Y(trn_labels, K_in=None)
     save_npz(X_ret_trn, Y_ret_trn, set_flag='trn')

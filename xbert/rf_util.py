@@ -298,6 +298,37 @@ class smat_util(object):
         return smat_util.sorted_csr(csc.T).T
 
     @staticmethod
+    def append_column(X, value=1.0, fast=True):
+        assert len(X.shape) == 2
+        new_column = value * sp.ones((X.shape[0], 1), dtype=X.dtype)
+        if isinstance(X, smat.csc_matrix):
+            if fast: # around 5x to 10x faster than smat.hstack
+                data = sp.concatenate((X.data, new_column.ravel()))
+                indices = sp.concatenate((X.indices, sp.arange(X.shape[0], dtype=X.indices.dtype)))
+                indptr = sp.concatenate((X.indptr, sp.array([X.indptr[-1] + X.shape[0]], dtype=X.indptr.dtype)))
+                X = smat.csc_matrix((data, indices, indptr), shape=(X.shape[0], X.shape[1] + 1))
+            else:
+                X = smat.hstack([X, new_column]).tocsc()
+        elif isinstance(X, smat.csr_matrix):
+            if fast: # around 5x to 10x faster than smat.hstack
+                indptr = X.indptr + sp.arange(X.shape[0] + 1, dtype=X.indptr.dtype)
+                indices = sp.zeros(len(X.indices) + X.shape[0], dtype=X.indices.dtype)
+                data = sp.zeros(len(X.data) + X.shape[0], dtype=X.data.dtype)
+                mask_loc = indptr[1:] - 1
+                inv_mask = sp.ones_like(indices, dtype=sp.bool8)
+                inv_mask[mask_loc] = False
+                indices[mask_loc] = X.shape[1]
+                data[mask_loc] = value
+                indices[inv_mask] = X.indices
+                data[inv_mask] = X.data
+                X = smat.csr_matrix((data, indices, indptr), shape=(X.shape[0], X.shape[1] + 1))
+            else:
+                X = smat.hstack([X, new_column]).tocsr()
+        elif isinstance(X, sp.ndarray):
+            X = sp.hstack([X, new_column])
+        return X
+
+    @staticmethod
     def dense_to_coo(dense):
         rows = sp.arange(dense.shape[0], dtype=sp.uint32)
         cols = sp.arange(dense.shape[1], dtype=sp.uint32)
