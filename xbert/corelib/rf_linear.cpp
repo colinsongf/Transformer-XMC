@@ -46,6 +46,8 @@ struct walltime_clock_t {
     }
 };
 
+//extern int mkl_set_num_threads_local(int);
+
 enum {
     L2R_LR=0,
     L2R_L2LOSS_SVC_DUAL=1,
@@ -145,15 +147,13 @@ struct Tree {
     //                euclidean similarity
 
     template<typename MAT>
-    void partition_kmeans(size_t nid, size_t depth, const MAT& feat_mat, size_t max_iter=10, double tol=0.01) {
+    void partition_kmeans(size_t nid, size_t depth, const MAT& feat_mat, size_t max_iter=10) {
         Node& root = root_of(nid);
         Node& left = left_of(nid);
         Node& right = right_of(nid);
         partition_elements(root, left, right);
 
-        double score_old = 0;
         // perform the clustering and sorting
-        // Stopping condition with ACC
         for(size_t iter = 0; iter < max_iter; iter++) {
             // construct center (for right child)
             memset(center.buf, 0, sizeof(ValueType) * center.len);
@@ -188,40 +188,31 @@ struct Tree {
             dvec_t *scores_ptr = &scores;
             dvec_t *center_ptr = &center;
             const MAT* feat_mat_ptr = &feat_mat;
-            double score_new = 0;
             // construct scores
-#pragma omp parallel for shared(elements_ptr, scores_ptr, center_ptr, feat_mat_ptr) reduction(+ : score_new)
+#pragma omp parallel for shared(elements_ptr, scores_ptr, center_ptr, feat_mat_ptr)
             for(size_t i = root.start; i < root.end; i++) {
                 size_t eid = elements_ptr->at(i);
                 const svec_t& feat = feat_mat_ptr->get_row(eid);
                 scores_ptr->at(eid) = do_dot_product(*center_ptr, feat);
-                score_new += scores_ptr->at(eid) * scores_ptr->at(eid);
-            }
-            //fprintf(stderr, "iter %d score_new %g\n", iter, score_new);
-            if((fabs(score_new - score_old) / (score_new)) < tol) {
-                break;
-            } else {
-                score_old = score_new;
             }
             sort_elements_by_scores_on_node(root);
         }
     }
 
     template<typename MAT>
-    void partition_skmeans(size_t nid, size_t depth, const MAT& feat_mat, size_t max_iter=10, double tol=0.01) {
+    void partition_skmeans(size_t nid, size_t depth, const MAT& feat_mat, size_t max_iter=10) {
         Node& root = root_of(nid);
         Node& left = left_of(nid);
         Node& right = right_of(nid);
         partition_elements(root, left, right);
 
-        double score_old = 0;
         // perform the clustering and sorting
-        // Stopping condition with ACC
         for(size_t iter = 0; iter < max_iter; iter++) {
             ValueType one = 1.0;
             // construct center (for right child)
             memset(center.buf, 0, sizeof(ValueType) * center.len);
             memset(center2.buf, 0, sizeof(ValueType) * center2.len);
+
             if(iter == 0) {
                 auto right_idx = rng.randint(0, root.size() - 1);
                 auto left_idx = (right_idx + rng.randint(1, root.size() - 1)) % root.size();
@@ -256,26 +247,16 @@ struct Tree {
 
                 do_axpy(-1.0, center2, center);
             }
-
-
             ivec_t *elements_ptr = &elements;
             dvec_t *scores_ptr = &scores;
             dvec_t *center_ptr = &center;
             const MAT* feat_mat_ptr = &feat_mat;
             // construct scores
-            double score_new = 0;
-#pragma omp parallel for shared(elements_ptr, scores_ptr, center_ptr, feat_mat_ptr) reduction(+ : score_new)
+#pragma omp parallel for shared(elements_ptr, scores_ptr, center_ptr, feat_mat_ptr)
             for(size_t i = root.start; i < root.end; i++) {
                 size_t eid = elements_ptr->at(i);
                 const svec_t& feat = feat_mat_ptr->get_row(eid);
                 scores_ptr->at(eid) = do_dot_product(*center_ptr, feat);
-                score_new += scores_ptr->at(eid) * scores_ptr->at(eid);
-            }
-            //fprintf(stderr, "iter %d score_new %g\n", iter, score_new);
-            if((fabs(score_new - score_old) / (score_new)) < tol) {
-                break;
-            } else {
-                score_old = score_new;
             }
             sort_elements_by_scores_on_node(root);
         }

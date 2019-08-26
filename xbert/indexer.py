@@ -203,7 +203,7 @@ class Indexer(object):
         codes = sp.array((X * (kdim ** sp.arange(depth)).reshape(1, -1)).sum(axis=1), dtype=sp.uint32)
         return codes
 
-    def balaced_ordinal_gen(self, kdim, depth, seed, threads=-1):
+    def balaced_ordinal_gen(self, kdim, depth, seed, threads=1):
         assert int(2**sp.log2(kdim)) == kdim
         sp.random.seed(seed)
         random_matrix = sp.randn(self.feat_mat.shape[1], depth)
@@ -213,7 +213,7 @@ class Indexer(object):
         clib.get_codes(X, new_depth, Indexer.KDTREE_CYCLIC, seed, codes, threads=threads)
         return codes
 
-    def gen(self, kdim, depth, algo, seed, max_iter=10, threads=-1):
+    def gen(self, kdim, depth, algo, seed, max_iter=10, threads=1):
         assert algo in [Indexer.KMEANS, Indexer.KDTREE, Indexer.ORDINAL, Indexer.UNIFORM, Indexer.BALANCED_ORDINAL, Indexer.KDTREE_CYCLIC, Indexer.SKMEANS]
         if algo in [Indexer.KMEANS, Indexer.KDTREE, Indexer.KDTREE_CYCLIC, Indexer.SKMEANS]:
             feat_mat = self.py_feat_mat
@@ -234,9 +234,9 @@ def run_test(data_folder='./datasets/Eurlex-4K'):
     import xbert.rf_linear as rf_linear
     data = rf_linear.Data.load(data_folder, label_emb=None)
     L = smat.load_npz(data_folder + '/L.pifa.npz')
-    code = Indexer(L).gen(kdim=2, depth=6, algo=0, seed=5, max_iter=20, threads=-1)
+    code = Indexer(L).gen(kdim=2, depth=6, algo=0, seed=5, max_iter=20, threads=1)
     code.print()
-    code = Indexer(L).gen(kdim=2, depth=6, algo=5, seed=5, max_iter=20, threads=-1)
+    code = Indexer(L).gen(kdim=2, depth=6, algo=5, seed=5, max_iter=20, threads=1)
     code.print()
 
 def main(args):
@@ -296,7 +296,7 @@ if __name__ == '__main__':
     parser.add_argument("--algo", type=int, default=5, help="0 for KMEANS 5 for SKMEANS (default 5)")
     parser.add_argument("--seed", type=int, default=0, help="random seed (default 0)")
     parser.add_argument("--kdim", type=int, default=2)
-    parser.add_argument("--threads", type=int, default=-1)
+    parser.add_argument("--threads", type=int, default=1)
     parser.add_argument("--max-iter", type=int, default=20)
     parser.add_argument("-v", "--verbose", type=bool, default=False)
 
