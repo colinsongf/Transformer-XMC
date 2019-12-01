@@ -158,7 +158,7 @@ class LinearTrainCommand(SubCommand):
         parser.add_argument("-B", "--bias", type=float, default=1.0, metavar="bias",
                 help="if bias > 0, instance x becomes [x; bias]; if <= 0, no bias term added (default 1.0)")
 
-        parser.add_argument("-t", "--threshold", type=float, default=0.1, metavar="VAL",
+        parser.add_argument("-t", "--threshold", type=float, default=0.01, metavar="VAL",
                 help="threshold to sparsity the model weights (default 0.1)")
 
         parser.add_argument("-n", "--threads", type=int, default=-1, metavar="INT",

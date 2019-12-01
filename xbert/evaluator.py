@@ -41,7 +41,7 @@ if __name__ == '__main__':
         help="path to the npz file of the truth label matrix (CSR) for computing metrics")
     parser.add_argument("-e", "--ensemble", action="store_true",
         help="whether to perform ensemble evaluations as well")
-    parser.add_argument("pred_path", nargs="+",
+    parser.add_argument("-p", "--pred_path", nargs="+",
         help="path to the npz file of the sorted prediction (CSR)")
     args = parser.parse_args()
     print(args)

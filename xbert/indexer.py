@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 from os import path
+import numpy as np
 import scipy as sp
 import scipy.sparse as smat
 import ctypes
@@ -175,6 +176,7 @@ class Indexer(object):
     BALANCED_ORDINAL=4  # random projection with balaced ordinal quantization
     SKMEANS=5   # Spherical KMEANS
     KDTREE_CYCLIC=11  # KDTREE with cyclic feature splits( 0,...,0, 1,...,1, 2,...,2)
+    PURE_RANDOM=12    # Random assign cluster for each element
 
     algos = {v:k for k, v in vars().items() if isinstance(v, int)}
 
@@ -214,7 +216,7 @@ class Indexer(object):
         return codes
 
     def gen(self, kdim, depth, algo, seed, max_iter=10, threads=1):
-        assert algo in [Indexer.KMEANS, Indexer.KDTREE, Indexer.ORDINAL, Indexer.UNIFORM, Indexer.BALANCED_ORDINAL, Indexer.KDTREE_CYCLIC, Indexer.SKMEANS]
+        assert algo in [Indexer.KMEANS, Indexer.KDTREE, Indexer.ORDINAL, Indexer.UNIFORM, Indexer.BALANCED_ORDINAL, Indexer.KDTREE_CYCLIC, Indexer.SKMEANS, Indexer.PURE_RANDOM]
         if algo in [Indexer.KMEANS, Indexer.KDTREE, Indexer.KDTREE_CYCLIC, Indexer.SKMEANS]:
             feat_mat = self.py_feat_mat
             codes = sp.zeros(feat_mat.rows, dtype=sp.uint32)
@@ -225,6 +227,12 @@ class Indexer(object):
         elif algo in [Indexer.BALANCED_ORDINAL]:
             assert int(2**sp.log2(kdim)) == kdim
             codes = self.balaced_ordinal_gen(kdim, depth, seed, threads=threads)
+        elif algo in [Indexer.PURE_RANDOM]:
+            feat_mat = self.py_feat_mat
+            codes = sp.zeros(feat_mat.rows, dtype=sp.uint32)
+            cluster_size = kdim**depth
+            for idx in range(feat_mat.rows):
+                codes[idx] = np.random.randint(0, cluster_size)
         else:
             raise NotImplementedError('unknown algo {}'.format(algo))
         return SeC(kdim, depth, algo, seed, codes)
