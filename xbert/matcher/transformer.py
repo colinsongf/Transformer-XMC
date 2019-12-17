@@ -311,6 +311,7 @@ class TransformerMatcher(object):
       raise NotImplementedError('unknown loss function {}'.format(loss_func))
 
     # overwrite
+    self.config = config
     self.model = model
     self.criterion = criterion
     self.num_clusters = num_clusters
@@ -337,6 +338,10 @@ class TransformerMatcher(object):
     # Note that DistributedSampler samples randomly
     eval_sampler = SequentialSampler(eval_data) if args.local_rank == -1 else DistributedSampler(eval_data)
     eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.eval_batch_size)
+
+    # multi-gpu eval
+    #if args.n_gpu > 1:
+    #  self.model = torch.nn.DataParallel(self.model)
 
     logger.info("***** Running evaluation *****")
     logger.info("  Num examples = %d", len(eval_features))
@@ -458,7 +463,7 @@ class TransformerMatcher(object):
 
     self.model.zero_grad()
     set_seed(args)  # Added here for reproductibility (even between python 2 and 3)
-    for epoch in range(1, int(args.num_train_epochs)):
+    for epoch in range(1, int(args.num_train_epochs)+1):
       for step, batch in enumerate(train_dataloader):
         self.model.train()
         start_time = time.time()
@@ -535,7 +540,7 @@ class TransformerMatcher(object):
         if args.max_steps > 0 and global_step > args.max_steps:
           break
       if args.max_steps > 0 and global_step > args.max_steps:
-        train_iterator.close()
+        break
 
     return self
 
@@ -554,16 +559,27 @@ def main():
   # if no init_checkpoint_dir,
   # start with random intialization and train
   TransformerMatcher.bootstrap_for_training(args)
-  model = TransformerMatcher()
-  model.prepare_model(args, num_clusters, loss_func=args.loss_func)
+  matcher = TransformerMatcher()
+  matcher.prepare_model(args, num_clusters, loss_func=args.loss_func)
 
   # do_train and save model
   if args.do_train:
-    model.train(args, trn_features, eval_features=tst_features, C_eval=C_tst)
+    matcher.train(args, trn_features, eval_features=tst_features, C_eval=C_tst)
 
   # do_eval on test set and save prediction output
   if args.do_eval:
-    eval_loss, eval_metrics, C_tst_pred = model.predict(args, tst_features, C_tst, topk=args.only_topk)
+    # load best model
+    args.model_type = args.model_type.lower()
+    config_class, model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
+    model = model_class.from_pretrained(args.output_dir,
+                                        from_tf=False,
+                                        config=matcher.config,
+                                        cache_dir=args.cache_dir if args.cache_dir else None)
+    model.to(args.device)
+    matcher.model = model
+    eval_loss, eval_metrics, C_tst_pred = matcher.predict(args, tst_features, C_tst, topk=args.only_topk)
+    logger.info('| matcher_eval_prec {}'.format(' '.join("{:4.2f}".format(100*v) for v in eval_metrics.prec)))
+    logger.info('| matcher_eval_recl {}'.format(' '.join("{:4.2f}".format(100*v) for v in eval_metrics.recall)))
     pred_csr_codes = C_tst_pred
     pred_csr_codes = rf_util.smat_util.sorted_csr(pred_csr_codes, only_topk=args.only_topk)
     pred_csr_codes = transform_prediction(pred_csr_codes, transform='lpsvm-l2')

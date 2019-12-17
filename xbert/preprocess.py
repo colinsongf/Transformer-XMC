@@ -10,6 +10,7 @@ from os import path
 import logging
 import numpy as np
 import pickle
+import time
 from tqdm import tqdm
 import scipy as sp
 import scipy.sparse as smat
@@ -62,7 +63,9 @@ def load_text_data(text_path, Y, csr_codes):
   with open(text_path, 'r') as fin:
     for idx, line in enumerate(tqdm(fin)):
       xseq = line.strip()
-      assert len(xseq) > 0, "line {} has empty text".format(idx)
+      if len(xseq) == 0:
+        logger.info("WARNING: line {} has empty text".format(idx))
+        continue
       # xseq
       xseq_list.append(xseq)
       # yseq
@@ -96,15 +99,17 @@ def convert_examples_to_features(
   features = []
   xseq_lens, cseq_lens = [], []
   for (ex_index, example) in enumerate(examples):
-    if ex_index % 10000 == 0:
+    if ex_index % 1000 == 0:
       logger.info("Writing example %d" % (ex_index))
 
+    # truncate long text by 8192 chars as they will exceed max_seq_len anyway
     inputs = tokenizer.encode_plus(
-      text=example.text,
+      text=example.text[:8192],
       text_pair=None,
       add_special_tokens=True,
       max_length=max_xseq_len,
     )
+
     input_ids, token_type_ids = inputs["input_ids"], inputs["token_type_ids"]
     xseq_lens.append(len(input_ids))
 
@@ -178,8 +183,8 @@ def main(args):
 
     # load data (text and label_ids)
     logger.info('loading data into quadruple set')
-    trn_text_path = os.path.join(args.input_data_dir, 'train_texts.txt')
-    tst_text_path = os.path.join(args.input_data_dir, 'test_texts.txt')
+    trn_text_path = os.path.join(args.input_data_dir, 'train_raw_texts.txt')
+    tst_text_path = os.path.join(args.input_data_dir, 'test_raw_texts.txt')
     trn_xseq_list, trn_cseq_list, trn_yseq_list = load_text_data(trn_text_path, Y_trn, csr_codes)
     tst_xseq_list, tst_cseq_list, tst_yseq_list = load_text_data(tst_text_path, Y_tst, csr_codes)
 
@@ -244,24 +249,22 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-
     ## Required parameters
     parser.add_argument("-m", '--model-type', type=str, required=True,
-            default='bert',
-            help='preprocess for model-type [bert | xlnet | xlm | roberta]')
+                        default='bert',
+                        help='preprocess for model-type [bert | xlnet | xlm | roberta]')
     parser.add_argument("-n", "--model_name_or_path", type=str, required=True,
-            default='bert-base-uncased',
-            help="Path to pre-trained model or shortcut name selected in the list: " + ", ".join(ALL_MODELS))
+                        default='bert-base-uncased',
+                        help="Path to pre-trained model or shortcut name selected in the list: " + ", ".join(ALL_MODELS))
     parser.add_argument("-i", "--input-data-dir", type=str, required=True, metavar="DIR",
-            default='./datasets/Eurlex-4K',
-            help="path to the dataset directory containing mls2seq/")
+                        default='./datasets/Eurlex-4K',
+                        help="path to the dataset directory containing mls2seq/")
     parser.add_argument("-c", "--input-code-path", type=str, required=True, metavar="PATH",
-            default='./save_models/Eurlex-4K/indexer/code.npz',
-            help="path to the npz file of the indexing codes (CSR, nr_labels * nr_codes)")
+                        default='./save_models/Eurlex-4K/indexer/code.npz',
+                        help="path to the npz file of the indexing codes (CSR, nr_labels * nr_codes)")
     parser.add_argument("-o", "--output-data-dir", type=str, required=True, metavar="DIR",
-            default='./save_models/Eurlex-4K/elmo-a0-s0/data-data-xbert',
-            help="directory for storing data_dict.pkl")
-
+                        default='./save_models/Eurlex-4K/elmo-a0-s0/data-data-xbert',
+                        help="directory for storing data_dict.pkl")
     ## Other parameters
     parser.add_argument("--config_name", default="", type=str,
                         help="Pretrained config name or path if not the same as model_name")
@@ -269,22 +272,16 @@ if __name__ == '__main__':
                         help="Pretrained tokenizer name or path if not the same as model_name")
     parser.add_argument("--cache_dir", default="", type=str,
                         help="Where do you want to store the pre-trained models downloaded from s3")
-    parser.add_argument("--max_xseq_len",
-            default=512,
-            type=int,
-            help="The maximum total input sequence length after WordPiece tokenization. \n"
-            "Sequences longer than this will be truncated, and sequences shorter \n"
-            "than this will be padded.")
-    parser.add_argument("--max_cseq_len",
-            default=32,
-            type=int,
-            help="The maximum total output sequence length. \n"
-            "Sequences longer than this will be truncated, and sequences shorter \n"
-            "than this will be padded.")
-    parser.add_argument("--do_lower_case",
-            action='store_true',
-            help="Set this flag if you are using an uncased model.")
-
+    parser.add_argument("--do_lower_case", action='store_true',
+                        help="Set this flag if you are using an uncased model.")
+    parser.add_argument("--max_xseq_len", default=512, type=int,
+                        help="The maximum total input sequence length after WordPiece tokenization. \n"
+                        "Sequences longer than this will be truncated, and sequences shorter \n"
+                        "than this will be padded.")
+    parser.add_argument("--max_cseq_len", default=32, type=int,
+                        help="The maximum total output sequence length. \n"
+                        "Sequences longer than this will be truncated, and sequences shorter \n"
+                        "than this will be padded.")
     args = parser.parse_args()
     print(args)
     main(args)
