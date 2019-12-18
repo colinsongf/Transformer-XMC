@@ -292,6 +292,7 @@ class TransformerMatcher(object):
                                           num_labels=num_clusters,
                                           finetuning_task=None,
                                           cache_dir=args.cache_dir if args.cache_dir else None)
+    config.output_hidden_states = True
 
     model = model_class.from_pretrained(args.model_name_or_path,
                                         from_tf=bool('.ckpt' in args.model_name_or_path),
@@ -327,7 +328,7 @@ class TransformerMatcher(object):
     model_to_save.save_pretrained(args.output_dir)
     torch.save(args, os.path.join(args.output_dir, 'training_args.bin'))
 
-  def predict(self, args, eval_features, C_eval_true, topk=10):
+  def predict(self, args, eval_features, C_eval_true, topk=10, get_hidden=False):
     """Prediction interface"""
     args.eval_batch_size = args.per_gpu_eval_batch_size * max(1, args.n_gpu)
     all_input_ids = torch.tensor([f.input_ids for f in eval_features], dtype=torch.long)
@@ -373,22 +374,23 @@ class TransformerMatcher(object):
                                            labels=None)
 
         # get pooled_output, which is the [CLS] embedding for the document
-        if args.model_type == 'bert':
-          pooled_output = self.model.bert.pooler(hidden_states[-1])
-          pooled_output = self.model.dropout(pooled_output)
-          #logits = self.model.classifier(pooled_output)
-        elif args.model_type == 'roberta':
-          pooled_output = self.model.classifier.dropout(hidden_states[-1][:,0,:])
-          pooled_output = self.model.classifier.dense(pooled_output)
-          pooled_output = torch.tanh(pooled_output)
-          pooled_output = self.model.classifier.dropout(pooled_output)
-          #logits = self.model.classifier.out_proj(pooled_output)
-        elif args.model_type == 'xlnet':
-          pooled_output = self.model.sequence_summary(hidden_states[-1])
-          #logits = self.model.logits_proj(pooled_output)
-        else:
-          raise NotImplementedError("unknown args.model_type {}".format(args.model_type))
-        #print('c_pred == logits?', torch.all(torch.eq(c_pred, logits)).item())
+        if get_hidden:
+          if args.model_type == 'bert':
+            pooled_output = self.model.bert.pooler(hidden_states[-1])
+            pooled_output = self.model.dropout(pooled_output)
+            #logits = self.model.classifier(pooled_output)
+          elif args.model_type == 'roberta':
+            pooled_output = self.model.classifier.dropout(hidden_states[-1][:,0,:])
+            pooled_output = self.model.classifier.dense(pooled_output)
+            pooled_output = torch.tanh(pooled_output)
+            pooled_output = self.model.classifier.dropout(pooled_output)
+            #logits = self.model.classifier.out_proj(pooled_output)
+          elif args.model_type == 'xlnet':
+            pooled_output = self.model.sequence_summary(hidden_states[-1])
+            #logits = self.model.logits_proj(pooled_output)
+          else:
+            raise NotImplementedError("unknown args.model_type {}".format(args.model_type))
+          all_pooled_output.append(pooled_output.cpu().numpy())
 
         # get ground true cluster ids
         c_true = data_utils.repack_output(inputs['output_ids'], inputs['output_mask'],
@@ -406,7 +408,6 @@ class TransformerMatcher(object):
       rows += cpred_topk_rows.numpy().flatten().tolist()
       cols += cpred_topk_cols.cpu().numpy().flatten().tolist()
       vals += cpred_topk_vals.cpu().numpy().flatten().tolist()
-      all_pooled_output.append(pooled_output.cpu().numpy())
 
     eval_loss = total_loss / total_example
     m = int(total_example)
@@ -417,7 +418,10 @@ class TransformerMatcher(object):
 
     # evaluation
     eval_metrics = rf_linear.Metrics.generate(C_eval_true, C_eval_pred, topk=args.only_topk)
-    eval_embeddings = np.concatenate(all_pooled_output, axis=0)
+    if get_hidden:
+      eval_embeddings = np.concatenate(all_pooled_output, axis=0)
+    else:
+      eval_embeddings = None
     return eval_loss, eval_metrics, C_eval_pred, eval_embeddings
 
 
@@ -591,15 +595,14 @@ def main():
     # load best model
     args.model_type = args.model_type.lower()
     config_class, model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
-    matcher.config.output_hidden_states = True
     model = model_class.from_pretrained(args.output_dir,
                                         from_tf=False,
                                         config=matcher.config,
                                         cache_dir=args.cache_dir if args.cache_dir else None)
     model.to(args.device)
     matcher.model = model
-    trn_loss, trn_metrics, C_trn_pred, trn_embeddings = matcher.predict(args, trn_features, C_trn, topk=args.only_topk)
-    tst_loss, tst_metrics, C_tst_pred, tst_embeddings = matcher.predict(args, tst_features, C_tst, topk=args.only_topk)
+    trn_loss, trn_metrics, C_trn_pred, trn_embeddings = matcher.predict(args, trn_features, C_trn, topk=args.only_topk, get_hidden=True)
+    tst_loss, tst_metrics, C_tst_pred, tst_embeddings = matcher.predict(args, tst_features, C_tst, topk=args.only_topk, get_hidden=True)
     logger.info('| matcher_trn_prec {}'.format(' '.join("{:4.2f}".format(100*v) for v in trn_metrics.prec)))
     logger.info('| matcher_trn_recl {}'.format(' '.join("{:4.2f}".format(100*v) for v in trn_metrics.recall)))
     logger.info('| matcher_tst_prec {}'.format(' '.join("{:4.2f}".format(100*v) for v in tst_metrics.prec)))
