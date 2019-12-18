@@ -292,7 +292,6 @@ class TransformerMatcher(object):
                                           num_labels=num_clusters,
                                           finetuning_task=None,
                                           cache_dir=args.cache_dir if args.cache_dir else None)
-    config.output_hidden_states = True
 
     model = model_class.from_pretrained(args.model_name_or_path,
                                         from_tf=bool('.ckpt' in args.model_name_or_path),
@@ -368,11 +367,16 @@ class TransformerMatcher(object):
           inputs['token_type_ids'] = batch[2] if args.model_type in ['bert', 'xlnet'] else None  # XLM, DistilBERT and RoBERTa don't use segment_ids
         cur_batch_size = inputs['input_ids'].size(0)
 
-        c_pred, hidden_states = self.model(input_ids=inputs['input_ids'],
-                                           attention_mask=inputs['attention_mask'],
-                                           token_type_ids=inputs['token_type_ids'],
-                                           labels=None)
-
+        # forward
+        outputs = self.model(input_ids=inputs['input_ids'],
+                             attention_mask=inputs['attention_mask'],
+                             token_type_ids=inputs['token_type_ids'],
+                             labels=None)
+        if get_hidden and self.config.output_hidden_states:
+          c_pred, hidden_states = outputs[0], outputs[1]
+        else:
+          c_pred = outputs[0]
+        
         # get pooled_output, which is the [CLS] embedding for the document
         if get_hidden:
           if args.model_type == 'bert':
@@ -595,6 +599,7 @@ def main():
     # load best model
     args.model_type = args.model_type.lower()
     config_class, model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
+    matcher.config.output_hidden_states = True
     model = model_class.from_pretrained(args.output_dir,
                                         from_tf=False,
                                         config=matcher.config,
