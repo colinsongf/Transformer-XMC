@@ -241,9 +241,11 @@ class TransformerMatcher(object):
     logger.info('NUM_CLUSTER {}'.format(num_clusters))
 
     # load Y csr matrix
+    C_trn = data_utils.Ylist_to_Ysparse(data_dict['trn']['cseq'], L=num_clusters)
     C_tst = data_utils.Ylist_to_Ysparse(data_dict['tst']['cseq'], L=num_clusters)
     return {'trn_features': trn_features, 'tst_features': tst_features,
-            'num_labels': num_labels, 'num_clusters': num_clusters, 'C_tst': C_tst}
+            'num_labels': num_labels, 'num_clusters': num_clusters,
+            'C_trn': C_trn, 'C_tst': C_tst}
 
   @staticmethod
   def bootstrap_for_training(args):
@@ -325,7 +327,7 @@ class TransformerMatcher(object):
     model_to_save.save_pretrained(args.output_dir)
     torch.save(args, os.path.join(args.output_dir, 'training_args.bin'))
 
-  def predict(self, args, eval_features, C_eval_true, topk=10, verbose=True):
+  def predict(self, args, eval_features, C_eval_true, topk=10):
     """Prediction interface"""
     args.eval_batch_size = args.per_gpu_eval_batch_size * max(1, args.n_gpu)
     all_input_ids = torch.tensor([f.input_ids for f in eval_features], dtype=torch.long)
@@ -337,7 +339,7 @@ class TransformerMatcher(object):
 
     # Note that DistributedSampler samples randomly
     eval_sampler = SequentialSampler(eval_data) if args.local_rank == -1 else DistributedSampler(eval_data)
-    eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.eval_batch_size)
+    eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.eval_batch_size, num_workers=4)
 
     # multi-gpu eval
     #if args.n_gpu > 1:
@@ -350,6 +352,7 @@ class TransformerMatcher(object):
     total_loss = 0.
     total_example = 0.
     rows, cols, vals = [], [], []
+    all_pooled_output = []
     for batch in eval_dataloader:
       self.model.eval()
       batch = tuple(t.to(args.device) for t in batch)
@@ -364,11 +367,30 @@ class TransformerMatcher(object):
           inputs['token_type_ids'] = batch[2] if args.model_type in ['bert', 'xlnet'] else None  # XLM, DistilBERT and RoBERTa don't use segment_ids
         cur_batch_size = inputs['input_ids'].size(0)
 
-        outputs = self.model(input_ids=inputs['input_ids'],
-                             attention_mask=inputs['attention_mask'],
-                             token_type_ids=inputs['token_type_ids'],
-                             labels=None)
-        c_pred = outputs[0]
+        c_pred, hidden_states = self.model(input_ids=inputs['input_ids'],
+                                           attention_mask=inputs['attention_mask'],
+                                           token_type_ids=inputs['token_type_ids'],
+                                           labels=None)
+
+        # get pooled_output, which is the [CLS] embedding for the document
+        if args.model_type == 'bert':
+          pooled_output = self.model.bert.pooler(hidden_states[-1])
+          pooled_output = self.model.dropout(pooled_output)
+          #logits = self.model.classifier(pooled_output)
+        elif args.model_type == 'roberta':
+          pooled_output = self.model.classifier.dropout(hidden_states[-1][:,0,:])
+          pooled_output = self.model.classifier.dense(pooled_output)
+          pooled_output = torch.tanh(pooled_output)
+          pooled_output = self.model.classifier.dropout(pooled_output)
+          #logits = self.model.classifier.out_proj(pooled_output)
+        elif args.model_type == 'xlnet':
+          pooled_output = self.model.sequence_summary(hidden_states[-1])
+          #logits = self.model.logits_proj(pooled_output)
+        else:
+          raise NotImplementedError("unknown args.model_type {}".format(args.model_type))
+        #print('c_pred == logits?', torch.all(torch.eq(c_pred, logits)).item())
+
+        # get ground true cluster ids
         c_true = data_utils.repack_output(inputs['output_ids'], inputs['output_mask'],
                                           self.num_clusters, args.device)
         loss = self.criterion(c_pred, c_true)
@@ -384,6 +406,7 @@ class TransformerMatcher(object):
       rows += cpred_topk_rows.numpy().flatten().tolist()
       cols += cpred_topk_cols.cpu().numpy().flatten().tolist()
       vals += cpred_topk_vals.cpu().numpy().flatten().tolist()
+      all_pooled_output.append(pooled_output.cpu().numpy())
 
     eval_loss = total_loss / total_example
     m = int(total_example)
@@ -394,12 +417,8 @@ class TransformerMatcher(object):
 
     # evaluation
     eval_metrics = rf_linear.Metrics.generate(C_eval_true, C_eval_pred, topk=args.only_topk)
-    if verbose:
-      logger.info('| matcher_eval_prec {}'.format(' '.join("{:4.2f}".format(100*v) for v in eval_metrics.prec)))
-      logger.info('| matcher_eval_recl {}'.format(' '.join("{:4.2f}".format(100*v) for v in eval_metrics.recall)))
-      logger.info('-' * 89)
-
-    return eval_loss, eval_metrics, C_eval_pred
+    eval_embeddings = np.concatenate(all_pooled_output, axis=0)
+    return eval_loss, eval_metrics, C_eval_pred, eval_embeddings
 
 
   def train(self, args, trn_features, eval_features=None, C_eval=None):
@@ -412,7 +431,7 @@ class TransformerMatcher(object):
     all_output_mask = torch.tensor([f.output_mask for f in trn_features], dtype=torch.long)
     train_data = TensorDataset(all_input_ids, all_attention_mask, all_token_type_ids, all_output_ids, all_output_mask)
     train_sampler = RandomSampler(train_data) if args.local_rank == -1 else DistributedSampler(train_data)
-    train_dataloader = DataLoader(train_data, sampler=train_sampler, batch_size=args.train_batch_size)
+    train_dataloader = DataLoader(train_data, sampler=train_sampler, batch_size=args.train_batch_size, num_workers=8)
 
     if args.max_steps > 0:
       t_total = args.max_steps
@@ -523,7 +542,7 @@ class TransformerMatcher(object):
 
           if args.local_rank in [-1, 0] and args.save_steps > 0 and global_step % args.save_steps == 0:
             # eval on dev set and save best model
-            eval_loss, eval_metrics, C_eval_pred = self.predict(args, eval_features, C_eval, topk=args.only_topk, verbose=False)
+            eval_loss, eval_metrics, C_eval_pred, _ = self.predict(args, eval_features, C_eval, topk=args.only_topk)
             logger.info('-' * 89)
             logger.info('| epoch {:3d} step {:6d} evaluation | time: {:5.4f}s | eval_loss {:e}'.format(
               epoch, global_step, total_run_time, eval_loss))
@@ -554,6 +573,7 @@ def main():
   trn_features = data['trn_features']
   tst_features = data['tst_features']
   num_clusters = data['num_clusters']
+  C_trn = data['C_trn']
   C_tst = data['C_tst']
 
   # if no init_checkpoint_dir,
@@ -571,20 +591,33 @@ def main():
     # load best model
     args.model_type = args.model_type.lower()
     config_class, model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
+    matcher.config.output_hidden_states = True
     model = model_class.from_pretrained(args.output_dir,
                                         from_tf=False,
                                         config=matcher.config,
                                         cache_dir=args.cache_dir if args.cache_dir else None)
     model.to(args.device)
     matcher.model = model
-    eval_loss, eval_metrics, C_tst_pred = matcher.predict(args, tst_features, C_tst, topk=args.only_topk)
-    logger.info('| matcher_eval_prec {}'.format(' '.join("{:4.2f}".format(100*v) for v in eval_metrics.prec)))
-    logger.info('| matcher_eval_recl {}'.format(' '.join("{:4.2f}".format(100*v) for v in eval_metrics.recall)))
-    pred_csr_codes = C_tst_pred
-    pred_csr_codes = rf_util.smat_util.sorted_csr(pred_csr_codes, only_topk=args.only_topk)
-    pred_csr_codes = transform_prediction(pred_csr_codes, transform='lpsvm-l2')
-    prediction_path = os.path.join(args.output_dir, 'C_eval_pred.npz')
-    smat.save_npz(prediction_path, pred_csr_codes)
+    trn_loss, trn_metrics, C_trn_pred, trn_embeddings = matcher.predict(args, trn_features, C_trn, topk=args.only_topk)
+    tst_loss, tst_metrics, C_tst_pred, tst_embeddings = matcher.predict(args, tst_features, C_tst, topk=args.only_topk)
+    logger.info('| matcher_trn_prec {}'.format(' '.join("{:4.2f}".format(100*v) for v in trn_metrics.prec)))
+    logger.info('| matcher_trn_recl {}'.format(' '.join("{:4.2f}".format(100*v) for v in trn_metrics.recall)))
+    logger.info('| matcher_tst_prec {}'.format(' '.join("{:4.2f}".format(100*v) for v in tst_metrics.prec)))
+    logger.info('| matcher_tst_recl {}'.format(' '.join("{:4.2f}".format(100*v) for v in tst_metrics.recall)))
+    # save C_trn_pred.npz and trn_embedding.npy
+    trn_csr_codes = rf_util.smat_util.sorted_csr(C_trn_pred, only_topk=args.only_topk)
+    trn_csr_codes = transform_prediction(trn_csr_codes, transform='lpsvm-l2')
+    csr_codes_path = os.path.join(args.output_dir, 'C_trn_pred.npz')
+    smat.save_npz(csr_codes_path, trn_csr_codes)
+    embedding_path = os.path.join(args.output_dir, 'trn_embeddings.npy')
+    np.save(embedding_path, trn_embeddings)
+    # save C_eval_pred.npz and tst_embedding.npy
+    tst_csr_codes = rf_util.smat_util.sorted_csr(C_tst_pred, only_topk=args.only_topk)
+    tst_csr_codes = transform_prediction(tst_csr_codes, transform='lpsvm-l2')
+    csr_codes_path = os.path.join(args.output_dir, 'C_tst_pred.npz')
+    smat.save_npz(csr_codes_path, tst_csr_codes)
+    embedding_path = os.path.join(args.output_dir, 'tst_embeddings.npy')
+    np.save(embedding_path, tst_embeddings)
 
 
 if __name__ == '__main__':
