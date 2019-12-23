@@ -39,18 +39,6 @@ for idx in "${!MODEL_TYPE_ARR[@]}"; do
 	INDEXER_DIR=${OUTPUT_DIR}/indexer
 
   # preprocess data binary (uncased) for transformer models
-  DATABIN_DIR=${OUTPUT_DIR}/data-bin-uncased/${MODEL_NAME}_seq-${MAX_XSEQ_LEN}
-	mkdir -p ${DATABIN_DIR}
-	python -u -m xbert.preprocess \
-			-m ${MODEL_TYPE} \
-      -n ${MODEL_NAME} \
-			-i datasets/${DATASET} \
-			-c ${INDEXER_DIR}/code.npz \
-      --do_lower_case \
-      --max_xseq_len $MAX_XSEQ_LEN \
-			-o ${DATABIN_DIR} |& tee ${DATABIN_DIR}/log.txt
-
-  # preprocess data binary (uncased) for transformer models
   DATABIN_DIR=${OUTPUT_DIR}/data-bin-cased/${MODEL_NAME}_seq-${MAX_XSEQ_LEN}
 	mkdir -p ${DATABIN_DIR}
 	python -u -m xbert.preprocess \

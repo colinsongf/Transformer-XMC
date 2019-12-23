@@ -160,8 +160,6 @@ class TransformerMatcher(object):
                         help="The input data dir. Should contain the .tsv files (or other data files) for the task.")
     parser.add_argument("-o", "--output_dir", default=None, type=str, required=True,
                         help="The output directory where the model predictions and checkpoints will be written.")
-    parser.add_argument("--init_checkpoint_dir", default=None, type=str, required=False,
-                        help="The directory where the model checkpoints will be intialized from.")
     ## Other parameters
     parser.add_argument("--config_name", default="", type=str,
                         help="Pretrained config name or path if not the same as model_name")
@@ -173,7 +171,8 @@ class TransformerMatcher(object):
                         help="Whether to run eval on the dev set.")
     parser.add_argument("--stop_by_dev", action='store_true',
                         help="Whether to run eval on the dev set.")
-
+    parser.add_argument("--hidden_dropout_prob", default=0.1, type=float,
+                        help="hidden dropout prob in deep transformer models.")
     parser.add_argument("--per_gpu_train_batch_size", default=8, type=int,
                         help="Batch size per GPU/CPU for training.")
     parser.add_argument("--per_gpu_eval_batch_size", default=8, type=int,
@@ -289,10 +288,10 @@ class TransformerMatcher(object):
     args.model_type = args.model_type.lower()
     config_class, model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
     config = config_class.from_pretrained(args.config_name if args.config_name else args.model_name_or_path,
+                                          hidden_dropout_prob = args.hidden_dropout_prob,
                                           num_labels=num_clusters,
                                           finetuning_task=None,
                                           cache_dir=args.cache_dir if args.cache_dir else None)
-
     model = model_class.from_pretrained(args.model_name_or_path,
                                         from_tf=bool('.ckpt' in args.model_name_or_path),
                                         config=config,
@@ -584,8 +583,7 @@ def main():
   C_trn = data['C_trn']
   C_tst = data['C_tst']
 
-  # if no init_checkpoint_dir,
-  # start with random intialization and train
+  # prepare transformer pretrained models
   TransformerMatcher.bootstrap_for_training(args)
   matcher = TransformerMatcher()
   matcher.prepare_model(args, num_clusters, loss_func=args.loss_func)

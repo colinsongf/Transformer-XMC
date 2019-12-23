@@ -1,21 +1,19 @@
 #!/bin/bash
 
 # semantic label indexing
-DATASET=$1
+GPUS=$1
+DATASET=$2
 LABEL_EMB=pifa
 ALGO=5
 SEED=0
 
-GPUS=2,3,4,5
-#GPUS=6,7,8,9
-
-MODEL_TYPE=$2
-MODEL_NAME=$3
-MAX_XSEQ_LEN=128
+MODEL_TYPE=$3
+MODEL_NAME=$4
+MAX_XSEQ_LEN=512
 OUTPUT_DIR=save_models/${DATASET}/${LABEL_EMB}-a${ALGO}-s${SEED}
 
 # set per_gpu_bsz by model_type
-if [ ${MODEL_TYPE} == "bert" | ${MODEL_TYPE} == "roberta" ]; then
+if [ ${MODEL_TYPE} == "bert" ] || [ ${MODEL_TYPE} == "roberta" ]; then
   PER_GPU_TRN_BSZ=16
   PER_GPU_VAL_BSZ=64
   GRAD_ACCU_STEPS=1
@@ -30,18 +28,18 @@ fi
 
 # set hyper-params by dataset
 if [ ${DATASET} == "Eurlex-4K" ]; then
-  MAX_STEPS_ARR=( 1000 )
-  WARMUP_STEPS_ARR=( 100 )
+  MAX_STEPS_ARR=( 1000 2000 )
+  WARMUP_STEPS_ARR=( 100 200 )
   LOGGING_STEPS=50
   SAVE_STEPS=200
-  LEARNING_RATE_ARR=( 1e-5 2e-5 )
+  LEARNING_RATE_ARR=( 1e-5 2e-5 3e-5 )
   INP_MODEL_DIR=${OUTPUT_DIR}/matcher-cased/${MODEL_NAME}_seq-128/step-2000_warmup-200_lr-3e-5
 elif [ ${DATASET} == "Wiki10-31K" ]; then
-  MAX_STEPS_ARR=( 1000 )
-  WARMUP_STEPS_ARR=( 100 )
+  MAX_STEPS_ARR=( 1000 2000 )
+  WARMUP_STEPS_ARR=( 100 200 )
   LOGGING_STEPS=50
   SAVE_STEPS=200
-  LEARNING_RATE_ARR=( 1e-5 2e-5 )
+  LEARNING_RATE_ARR=( 1e-5 2e-5 3e-5 )
   INP_MODEL_DIR=${OUTPUT_DIR}/matcher-cased/${MODEL_NAME}_seq-128/step-2000_warmup-200_lr-3e-5
 elif [ ${DATASET} == "AmazonCat-13K" ]; then
   MAX_STEPS_ARR=( 10000 )
@@ -84,6 +82,5 @@ for idx in "${!MAX_STEPS_ARR[@]}"; do
       --logging_steps ${LOGGING_STEPS} \
       --save_steps ${SAVE_STEPS} \
       |& tee ${OUT_MODEL_DIR}/log.txt
-    exit
   done
 done

@@ -1,27 +1,25 @@
 #!/bin/bash
 
 # semantic label indexing
-DATASET=$1
+GPUS=$1
+DATASET=$2
 LABEL_EMB=pifa
 ALGO=5
 SEED=0
 
-GPUS=2,3,4,5
-#GPUS=6,7,8,9
-
-MODEL_TYPE=$2
-MODEL_NAME=$3
+MODEL_TYPE=$3
+MODEL_NAME=$4
 MAX_XSEQ_LEN=128
 OUTPUT_DIR=save_models/${DATASET}/${LABEL_EMB}-a${ALGO}-s${SEED}
 
 # set per_gpu_bsz by model_type
 if [ ${MODEL_TYPE} == "bert" ] || [ ${MODEL_TYPE} == "roberta" ]; then
-  PER_GPU_TRN_BSZ=64
-  PER_GPU_VAL_BSZ=128
+  PER_GPU_TRN_BSZ=100
+  PER_GPU_VAL_BSZ=100
   GRAD_ACCU_STEPS=1
 elif [ ${MODEL_TYPE} == "xlnet" ]; then
-  PER_GPU_TRN_BSZ=32
-  PER_GPU_VAL_BSZ=128
+  PER_GPU_TRN_BSZ=50
+  PER_GPU_VAL_BSZ=100
   GRAD_ACCU_STEPS=2
 else
   echo "model_type not support [ bert | roberta | xlnet ]"
@@ -30,14 +28,14 @@ fi
 
 # set hyper-params by dataset
 if [ ${DATASET} == "Eurlex-4K" ]; then
-  MAX_STEPS_ARR=( 2000 )
-  WARMUP_STEPS_ARR=( 200 )
+  MAX_STEPS_ARR=( 2000 3000 )
+  WARMUP_STEPS_ARR=( 200 300 )
   LOGGING_STEPS=50
   SAVE_STEPS=200
   LEARNING_RATE_ARR=( 3e-5 4e-5 5e-5 )
 elif [ ${DATASET} == "Wiki10-31K" ]; then
-  MAX_STEPS_ARR=( 2000 )
-  WARMUP_STEPS_ARR=( 200 )
+  MAX_STEPS_ARR=( 2000 3000 )
+  WARMUP_STEPS_ARR=( 200 300 )
   LOGGING_STEPS=50
   SAVE_STEPS=200
   LEARNING_RATE_ARR=( 3e-5 4e-5 5e-5 )
@@ -80,6 +78,5 @@ for idx in "${!MAX_STEPS_ARR[@]}"; do
       --logging_steps ${LOGGING_STEPS} \
       --save_steps ${SAVE_STEPS} \
       |& tee ${MODEL_DIR}/log.txt
-    exit
   done
 done
