@@ -15,11 +15,11 @@ OUTPUT_DIR=save_models/${DATASET}/${LABEL_EMB}-a${ALGO}-s${SEED}
 # set per_gpu_bsz by model_type
 if [ ${MODEL_TYPE} == "bert" ] || [ ${MODEL_TYPE} == "roberta" ]; then
   PER_GPU_TRN_BSZ=16
-  PER_GPU_VAL_BSZ=64
+  PER_GPU_VAL_BSZ=16
   GRAD_ACCU_STEPS=1
 elif [ ${MODEL_TYPE} == "xlnet" ]; then
   PER_GPU_TRN_BSZ=8
-  PER_GPU_VAL_BSZ=64
+  PER_GPU_VAL_BSZ=16
   GRAD_ACCU_STEPS=2
 else
   echo "model_type not support [ bert | roberta | xlnet ]"
@@ -40,7 +40,7 @@ elif [ ${DATASET} == "Wiki10-31K" ]; then
   LOGGING_STEPS=50
   SAVE_STEPS=200
   LEARNING_RATE_ARR=( 1e-5 2e-5 3e-5 )
-  INP_MODEL_DIR=${OUTPUT_DIR}/matcher-cased/${MODEL_NAME}_seq-128/step-2000_warmup-200_lr-3e-5
+  INP_MODEL_DIR=${OUTPUT_DIR}/matcher-cased/${MODEL_NAME}_seq-128/step-3000_warmup-300_lr-5e-5
 elif [ ${DATASET} == "AmazonCat-13K" ]; then
   MAX_STEPS_ARR=( 10000 )
   WARMUP_STEPS_ARR=( 1000 )
