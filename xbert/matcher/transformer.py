@@ -341,8 +341,8 @@ class TransformerMatcher(object):
     eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.eval_batch_size, num_workers=4)
 
     # multi-gpu eval
-    #if args.n_gpu > 1:
-    #  self.model = torch.nn.DataParallel(self.model)
+    if args.n_gpu > 1 and not isinstance(self.model, torch.nn.DataParallel):
+      self.model = torch.nn.DataParallel(self.model)
 
     logger.info("***** Running evaluation *****")
     logger.info("  Num examples = %d", len(eval_features))
@@ -375,21 +375,22 @@ class TransformerMatcher(object):
           c_pred, hidden_states = outputs[0], outputs[1]
         else:
           c_pred = outputs[0]
-        
+
         # get pooled_output, which is the [CLS] embedding for the document
+        # assume self.model hasattr module because torch.nn.DataParallel
         if get_hidden:
           if args.model_type == 'bert':
-            pooled_output = self.model.bert.pooler(hidden_states[-1])
-            pooled_output = self.model.dropout(pooled_output)
+            pooled_output = self.model.module.bert.pooler(hidden_states[-1])
+            pooled_output = self.model.module.dropout(pooled_output)
             #logits = self.model.classifier(pooled_output)
           elif args.model_type == 'roberta':
-            pooled_output = self.model.classifier.dropout(hidden_states[-1][:,0,:])
-            pooled_output = self.model.classifier.dense(pooled_output)
+            pooled_output = self.model.module.classifier.dropout(hidden_states[-1][:,0,:])
+            pooled_output = self.model.module.classifier.dense(pooled_output)
             pooled_output = torch.tanh(pooled_output)
-            pooled_output = self.model.classifier.dropout(pooled_output)
+            pooled_output = self.model.module.classifier.dropout(pooled_output)
             #logits = self.model.classifier.out_proj(pooled_output)
           elif args.model_type == 'xlnet':
-            pooled_output = self.model.sequence_summary(hidden_states[-1])
+            pooled_output = self.model.module.sequence_summary(hidden_states[-1])
             #logits = self.model.logits_proj(pooled_output)
           else:
             raise NotImplementedError("unknown args.model_type {}".format(args.model_type))
@@ -463,7 +464,7 @@ class TransformerMatcher(object):
       self.model, optimizer = amp.initialize(self.model, optimizer, opt_level=args.fp16_opt_level)
 
     # multi-gpu training (should be after apex fp16 initialization)
-    if args.n_gpu > 1:
+    if args.n_gpu > 1 and not isinstance(self.model, torch.nn.DataParallel):
       self.model = torch.nn.DataParallel(self.model)
 
     # Distributed training (should be after apex fp16 initialization)
@@ -590,7 +591,9 @@ def main():
 
   # do_train and save model
   if args.do_train:
-    matcher.train(args, trn_features, eval_features=tst_features, C_eval=C_tst)
+    n_tst = len(tst_features)
+    eval_subset = min(n_tst, 1000)
+    matcher.train(args, trn_features, eval_features=tst_features[:eval_subset], C_eval=C_tst[:eval_subset])
 
   # do_eval on test set and save prediction output
   if args.do_eval:

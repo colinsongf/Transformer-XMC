@@ -65,7 +65,7 @@ def load_text_data(text_path, Y, csr_codes):
       xseq = line.strip()
       if len(xseq) == 0:
         logger.info("WARNING: line {} has empty text".format(idx))
-        continue
+        xseq = ""
       # xseq
       xseq_list.append(xseq)
       # yseq
