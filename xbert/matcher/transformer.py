@@ -592,8 +592,10 @@ def main():
   # do_train and save model
   if args.do_train:
     n_tst = len(tst_features)
-    eval_subset = min(n_tst, 1000)
-    matcher.train(args, trn_features, eval_features=tst_features[:eval_subset], C_eval=C_tst[:eval_subset])
+    n_eval = min(n_tst, 200000)
+    eval_subset = np.random.permutation(np.arange(n_tst))[:n_eval]
+    eval_features = [tst_features[idx] for idx in eval_subset]
+    matcher.train(args, trn_features, eval_features=eval_features, C_eval=C_tst[eval_subset])
 
   # do_eval on test set and save prediction output
   if args.do_eval:
