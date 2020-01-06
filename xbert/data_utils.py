@@ -41,16 +41,6 @@ class InputFeatures(object):
         self.output_mask = output_mask
 
 
-def repack_output(output_ids, output_mask, num_labels, device):
-    batch_size = output_ids.size(0)
-    idx_arr = torch.nonzero(output_mask)
-    rows = idx_arr[:,0]
-    cols = output_ids[idx_arr[:,0], idx_arr[:,1]]
-    c_true = torch.zeros((batch_size,num_labels), dtype=torch.float, device=device)
-    c_true[rows, cols] = 1.0
-    return c_true
-
-
 # convert array of indices into one-hot vector
 # Y_pad_seq: batch_size x max_len
 # Y_one_hot: batch_size x NUM_LABEL

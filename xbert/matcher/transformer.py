@@ -54,22 +54,12 @@ from tqdm import tqdm, trange
 import xbert.data_utils as data_utils
 import xbert.rf_linear as rf_linear
 import xbert.rf_util as rf_util
+from xbert.matcher.modeling import BertForXMLC, RobertaForXMLC, XLNetForXMLC
 
-from transformers import (WEIGHTS_NAME, BertConfig,
-                          BertForSequenceClassification, BertTokenizer,
-                          RobertaConfig,
-                          RobertaForSequenceClassification,
-                          RobertaTokenizer,
-                          XLMConfig, XLMForSequenceClassification,
-                          XLMTokenizer, XLNetConfig,
-                          XLNetForSequenceClassification,
-                          XLNetTokenizer,
-                          DistilBertConfig,
-                          DistilBertForSequenceClassification,
-                          DistilBertTokenizer,
-                          AlbertConfig,
-                          AlbertForSequenceClassification,
-                          AlbertTokenizer,
+from transformers import (WEIGHTS_NAME,
+                          BertConfig, BertTokenizer,
+                          RobertaConfig, RobertaTokenizer,
+                          XLNetConfig, XLNetTokenizer,
                           )
 
 from transformers import AdamW, get_linear_schedule_with_warmup
@@ -77,16 +67,12 @@ from transformers import AdamW, get_linear_schedule_with_warmup
 
 # global variable within the module
 
-ALL_MODELS = sum((tuple(conf.pretrained_config_archive_map.keys()) for conf in (BertConfig, XLNetConfig, XLMConfig,
-                                                                                RobertaConfig, DistilBertConfig)), ())
+ALL_MODELS = sum((tuple(conf.pretrained_config_archive_map.keys()) for conf in (BertConfig, RobertaConfig, XLNetConfig)), ())
 
 MODEL_CLASSES = {
-  'bert': (BertConfig, BertForSequenceClassification, BertTokenizer),
-  'xlnet': (XLNetConfig, XLNetForSequenceClassification, XLNetTokenizer),
-  'xlm': (XLMConfig, XLMForSequenceClassification, XLMTokenizer),
-  'roberta': (RobertaConfig, RobertaForSequenceClassification, RobertaTokenizer),
-  'distilbert': (DistilBertConfig, DistilBertForSequenceClassification, DistilBertTokenizer),
-  'albert': (AlbertConfig, AlbertForSequenceClassification, AlbertTokenizer)
+  'bert': (BertConfig, BertForXMLC, BertTokenizer),
+  'roberta': (RobertaConfig, RobertaForXMLC, RobertaTokenizer),
+  'xlnet': (XLNetConfig, XLNetForXMLC, XLNetTokenizer),
 }
 
 logger = None
@@ -114,30 +100,11 @@ def transform_prediction(csr_codes, transform='lpsvm-l2'):
   return csr_codes
 
 
-class HingeLoss(nn.Module):
-  """criterion for loss function
-  y: 0/1 ground truth matrix of size: batch_size x output_size
-    f: real number pred matrix of size: batch_size x output_size
-  """
-  def __init__(self, margin=1.0, squared=True):
-    super(HingeLoss, self).__init__()
-    self.margin = margin
-    self.squared = squared
-
-  def forward(self, f, y):
-    # convert y into {-1,1}
-    y_new = 2.*y - 1.0
-    loss = F.relu(self.margin - y_new*f)
-    if self.squared:
-      loss = loss**2
-    return loss.mean()
-
 
 class TransformerMatcher(object):
   """ TODO Doc"""
-  def __init__(self, model=None, criterion=None, num_clusters=None):
+  def __init__(self, model=None, num_clusters=None):
     self.model = model
-    self.criterion = criterion
     self.num_clusters = num_clusters
 
   @staticmethod
@@ -280,7 +247,7 @@ class TransformerMatcher(object):
     # Set seed
     set_seed(args)
 
-  def prepare_model(self, args, num_clusters, loss_func="l2-hinge"):
+  def prepare_model(self, args, num_clusters):
     """ Load a pretrained model for sequence classification. """
     if args.local_rank not in [-1, 0]:
       torch.distributed.barrier()  # Make sure only the first process in distributed training will download model & vocab
@@ -301,22 +268,10 @@ class TransformerMatcher(object):
       torch.distributed.barrier()  # Make sure only the first process in distributed training will download model & vocab
     model.to(args.device)
 
-    # Prepare Loss Criterion
-    if loss_func == 'bce':
-      criterion = nn.BCEWithLogitsLoss()
-    elif loss_func == 'l1-hinge':
-      criterion = HingeLoss(margin=args.margin, squared=False).to(args.device)
-    elif loss_func == 'l2-hinge':
-      criterion = HingeLoss(margin=args.margin, squared=True).to(args.device)
-    else:
-      raise NotImplementedError('unknown loss function {}'.format(loss_func))
-
-    # overwrite
+        # overwrite
     self.config = config
     self.model = model
-    self.criterion = criterion
     self.num_clusters = num_clusters
-    self.loss_func = loss_func
 
   def save_model(self, args):
     # Save model checkpoint
@@ -370,11 +325,16 @@ class TransformerMatcher(object):
         outputs = self.model(input_ids=inputs['input_ids'],
                              attention_mask=inputs['attention_mask'],
                              token_type_ids=inputs['token_type_ids'],
-                             labels=None)
+                             output_ids=inputs['output_ids'],
+                             output_mask=inputs['output_mask'],
+                             )
         if get_hidden and self.config.output_hidden_states:
-          c_pred, hidden_states = outputs[0], outputs[1]
+          loss, c_pred, hidden_states = outputs[0], outputs[1], outputs[2]
         else:
-          c_pred = outputs[0]
+          loss, c_pred = outputs[0], outputs[1]
+        if args.n_gpu > 1:
+          loss = loss.mean() # mean() to average on multi-gpu parallel training
+        total_loss += cur_batch_size * loss
 
         # get pooled_output, which is the [CLS] embedding for the document
         # assume self.model hasattr module because torch.nn.DataParallel
@@ -395,12 +355,6 @@ class TransformerMatcher(object):
           else:
             raise NotImplementedError("unknown args.model_type {}".format(args.model_type))
           all_pooled_output.append(pooled_output.cpu().numpy())
-
-        # get ground true cluster ids
-        c_true = data_utils.repack_output(inputs['output_ids'], inputs['output_mask'],
-                                          self.num_clusters, args.device)
-        loss = self.criterion(c_pred, c_true)
-        total_loss += cur_batch_size * loss
 
       # get topk prediction rows,cols,vals
       cpred_topk_vals, cpred_topk_cols = c_pred.topk(topk, dim=1)
@@ -506,11 +460,10 @@ class TransformerMatcher(object):
         outputs = self.model(input_ids=inputs['input_ids'],
                              attention_mask=inputs['attention_mask'],
                              token_type_ids=inputs['token_type_ids'],
-                             labels=None)
-        c_pred = outputs[0] # if labels=None, then output[0] = logits
-        c_true = data_utils.repack_output(inputs['output_ids'], inputs['output_mask'],
-                                          self.num_clusters, args.device)
-        loss = self.criterion(c_pred, c_true)
+                             output_ids=inputs['output_ids'],
+                             output_mask=inputs['output_mask'],
+                             )
+        loss = outputs[0]  # model outputs are always tuple in transformers (see doc)
 
         if args.n_gpu > 1:
           loss = loss.mean() # mean() to average on multi-gpu parallel training
@@ -553,7 +506,7 @@ class TransformerMatcher(object):
             eval_loss, eval_metrics, C_eval_pred, _ = self.predict(args, eval_features, C_eval, topk=args.only_topk)
             logger.info('-' * 89)
             logger.info('| epoch {:3d} step {:6d} evaluation | time: {:5.4f}s | eval_loss {:e}'.format(
-              epoch, global_step, total_run_time, eval_loss))
+              epoch, global_step, total_run_time, eval_loss.item()))
             logger.info('| matcher_eval_prec {}'.format(' '.join("{:4.2f}".format(100*v) for v in eval_metrics.prec)))
             logger.info('| matcher_eval_recl {}'.format(' '.join("{:4.2f}".format(100*v) for v in eval_metrics.recall)))
 
@@ -587,7 +540,7 @@ def main():
   # prepare transformer pretrained models
   TransformerMatcher.bootstrap_for_training(args)
   matcher = TransformerMatcher()
-  matcher.prepare_model(args, num_clusters, loss_func=args.loss_func)
+  matcher.prepare_model(args, num_clusters)
 
   # do_train and save model
   if args.do_train:
