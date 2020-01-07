@@ -30,7 +30,7 @@ def repack_output(output_ids, output_mask, num_labels):
 
 class HingeLoss(nn.Module):
   """criterion for loss function
-  y: 0/1 ground truth matrix of size: batch_size x output_size
+    y: 0/1 ground truth matrix of size: batch_size x output_size
     f: real number pred matrix of size: batch_size x output_size
   """
   def __init__(self, margin=1.0, squared=True):
@@ -38,12 +38,13 @@ class HingeLoss(nn.Module):
     self.margin = margin
     self.squared = squared
 
-  def forward(self, f, y):
+  def forward(self, f, y, C_pos=1.0, C_neg=0.1):
     # convert y into {-1,1}
     y_new = 2.*y - 1.0
     loss = F.relu(self.margin - y_new*f)
     if self.squared:
       loss = loss**2
+    loss = loss * (C_pos * y + C_neg * (1. - y))
     return loss.mean()
 
 
