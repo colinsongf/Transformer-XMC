@@ -311,9 +311,7 @@ class MLProblem(object):
         self.pC = PyMatrix.init_from(C, dtype)
         Z = None if C is None else smat.csr_matrix(self.Y.dot(self.C))
         if Z_pred is not None and Z is not None:
-          #Z = Z + Z_pred
-          Z = Z_pred
-          Z = Z.tocsr()
+          Z = (Z + Z_pred).tocsr()
         self.pZ = PyMatrix.init_from(Z, dtype)  # Z = Y * C
         self.dtype = dtype
 

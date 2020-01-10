@@ -24,7 +24,7 @@ fi
 LABEL_NAME=pifa-a5-s0
 OUTPUT_DIR=save_models/${DATASET}/${LABEL_NAME}
 
-EXP_NAME=feat-tfidf_neg-yes
+EXP_NAME=feat-joint_neg-yes
 PRED_NPZ_PATHS=""
 MODEL_NAME_ARR=( bert-base-cased_seq-128 roberta-base_seq-128 xlnet-base-cased_seq-128 bert-large-cased-whole-word-masking_seq-128 roberta-large_seq-128 )
 for idx in "${!MODEL_NAME_ARR[@]}"; do
@@ -35,6 +35,7 @@ for idx in "${!MODEL_NAME_ARR[@]}"; do
 	mkdir -p ${RANKER_DIR}
   python -m xbert.ranker train \
     -x datasets/${DATASET}/X.trn.npz \
+    -x2 ${OUTPUT_DIR}/matcher-cased/${MODEL_NAME}/final_model/trn_embeddings.npy \
     -y datasets/${DATASET}/Y.trn.npz \
     -c ${OUTPUT_DIR}/indexer/code.npz \
     -z ${OUTPUT_DIR}/matcher-cased/${MODEL_NAME}/final_model/C_trn_pred.npz \
@@ -44,11 +45,11 @@ for idx in "${!MODEL_NAME_ARR[@]}"; do
   python -m xbert.ranker predict \
     -m ${RANKER_DIR} -o ${PRED_NPZ_PATH} \
     -x datasets/${DATASET}/X.tst.npz \
+    -x2 ${OUTPUT_DIR}/matcher-cased/${MODEL_NAME}/final_model/tst_embeddings.npy \
     -y datasets/${DATASET}/Y.tst.npz \
     -c ${OUTPUT_DIR}/matcher-cased/${MODEL_NAME}/final_model/C_tst_pred.npz
 
   PRED_NPZ_PATHS="${PRED_NPZ_PATHS} ${PRED_NPZ_PATH}"
-  exit
 done
 
 # final eval
