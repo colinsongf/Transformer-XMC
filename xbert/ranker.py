@@ -3,10 +3,10 @@
 import argparse
 import sys
 from os import path
-
+import numpy as np
 import scipy as sp
 import scipy.sparse as smat
-
+from sklearn.preprocessing import normalize
 from xbert.rf_linear import MLProblem, Metrics, HierarchicalMLModel, PostProcessor
 
 # solver_type
@@ -106,7 +106,24 @@ class LinearTrainCommand(SubCommand):
             C = None
         else:
             C = smat.load_npz(args.input_code_path)
-        X = smat.load_npz(args.input_inst_feat)
+
+        if args.input_inst_feat.endswith(".npz"):
+          X = smat.load_npz(args.input_inst_feat)
+        else:
+          X = np.load(args.input_inst_feat)
+          X = normalize(X, axis=1)
+          X = smat.csr_matrix(X)
+        if args.input_inst_feat2 is not None:
+          if args.input_inst_feat2.endswith(".npz"):
+            X2 = smat.load_npz(args.input_inst_feat2)
+          else:
+            X2 = np.load(args.input_inst_feat2)
+            X2 = normalize(X2, axis=1)
+            X2 = smat.csr_matrix(X2)
+          X = smat.hstack([X, X2]).tocsr()
+          X = normalize(X, axis=1)
+
+
         Y = smat.load_npz(args.input_inst_label)
         if args.pred_inst_codes is not None:
           Z_pred = smat.load_npz(args.pred_inst_codes)
@@ -136,6 +153,8 @@ class LinearTrainCommand(SubCommand):
     @staticmethod
     def add_arguments(parser):
         parser.add_argument("-x", "--input-inst-feat", type=str, required=True, metavar="PATH",
+                help="path to the npz file of the feature matrix (CSR, nr_insts * nr_feats)")
+        parser.add_argument("-x2", "--input-inst-feat2", type=str, default=None, metavar="PATH",
                 help="path to the npz file of the feature matrix (CSR, nr_insts * nr_feats)")
 
         parser.add_argument("-y", "--input-inst-label", type=str, required=True, metavar="PATH",
@@ -175,7 +194,23 @@ class LinearTrainCommand(SubCommand):
 class LinearPredictCommand(SubCommand):
     @staticmethod
     def run(args):
-        Xt = smat.load_npz(args.input_inst_feat)
+        if args.input_inst_feat.endswith(".npz"):
+          Xt = smat.load_npz(args.input_inst_feat)
+        else:
+          Xt = np.load(args.input_inst_feat)
+          Xt = normalize(Xt, axis=1)
+          Xt = smat.csr_matrix(Xt)
+        if args.input_inst_feat2 is not None:
+          if args.input_inst_feat2.endswith(".npz"):
+            Xt2 = smat.load_npz(args.input_inst_feat2)
+          else:
+            Xt2 = np.load(args.input_inst_feat2)
+            Xt2 = normalize(Xt2, axis=1)
+            Xt2 = smat.csr_matrix(Xt2)
+          Xt = smat.hstack([Xt, Xt2]).tocsr()
+          Xt = normalize(Xt, axis=1)
+
+
         model = LinearModel.load(args.input_ranker_folder)
         # get only ranker part if predicted_csr_code from a matcher is provided
         if args.predicted_csr_code is not None and path.exists(args.predicted_csr_code):
@@ -212,6 +247,9 @@ class LinearPredictCommand(SubCommand):
 
         parser.add_argument("-x", "--input-inst-feat", type=str, required=True,
                 help="path to the npz file of the feature matrix (CSR)")
+        parser.add_argument("-x2", "--input-inst-feat2", type=str, default=None, metavar="PATH",
+                help="path to the npz file of the feature matrix (CSR, nr_insts * nr_feats)")
+
 
         parser.add_argument("-y", "--input-inst-label", type=str, required=False,
                 help="path to the npz file of the label matrix (CSR) for computing metrics")

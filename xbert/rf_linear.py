@@ -272,13 +272,14 @@ class PostProcessor(object):
     @classmethod
     def get(cls, name):
         mapping = {
-                'sigmoid': PostProcessor.sigmoid,
+                'sigmoid': PostProcessor.sigmoid(),
                 'log-sigmoid': cls(Transform.log_sigmoid, Combiner.add),
                 'noop': cls(Transform.identity, Combiner.noop),
                 }
         for p in [1, 2, 3, 4, 5, 6]:
             mapping['l{}-hinge'.format(p)] = cls(Transform.get_lpsvm(p), Combiner.mul)
             mapping['log-l{}-hinge'.format(p)] = cls(Transform.get_log_lpsvm(p), Combiner.add)
+            mapping['l{}-hinge-noisyor'.format(p)] = cls(Transform.get_lpsvm(p), Combiner.noisyor)
         return mapping[name]
 
     @classmethod
@@ -310,9 +311,8 @@ class MLProblem(object):
         self.pC = PyMatrix.init_from(C, dtype)
         Z = None if C is None else smat.csr_matrix(self.Y.dot(self.C))
         if Z_pred is not None and Z is not None:
-          print("Z", Z.shape)
-          print("Z_pred", Z_pred.shape)
-          Z = Z + Z_pred
+          #Z = Z + Z_pred
+          Z = Z_pred
           Z = Z.tocsr()
         self.pZ = PyMatrix.init_from(Z, dtype)  # Z = Y * C
         self.dtype = dtype
