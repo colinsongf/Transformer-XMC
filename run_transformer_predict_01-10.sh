@@ -22,7 +22,7 @@ else
 fi
 
 LABEL_NAME=pifa-a5-s0
-OUTPUT_DIR=save_models/${DATASET}/${LABEL_NAME}
+OUTPUT_DIR=save_models_01-10/${DATASET}/${LABEL_NAME}
 
 EXP_NAME=feat-joint_neg-yes
 PRED_NPZ_PATHS=""
