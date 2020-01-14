@@ -20,9 +20,9 @@ fi
 MAX_XSEQ_LEN=$2
 
 # semantic label indexing
-LABEL_EMB=pifa
-ALGO=5
-SEED=0
+INDEXER_NAME=pifa-a5-s0
+INDEXER_NAME=pifa-neural-a5-s0
+INDEXER_NAME=text-emb-a5-s0
 
 # HuggingFace pretrained model preprocess
 MODEL_TYPE_ARR=( "bert" "roberta" "xlnet")
@@ -34,7 +34,6 @@ for idx in "${!MODEL_TYPE_ARR[@]}"; do
 	MODEL_NAME=${MODEL_NAME_ARR[${idx}]}
 
   # semantic label indexing
-  INDEXER_NAME=${LABEL_EMB}-a${ALGO}-s${SEED}
 	OUTPUT_DIR=save_models/${DATASET}/${INDEXER_NAME}
 	INDEXER_DIR=${OUTPUT_DIR}/indexer
 
