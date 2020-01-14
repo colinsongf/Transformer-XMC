@@ -21,8 +21,12 @@ def main(args):
 
     # xlnet-large-cased tokenizer
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    tokenizer = XLNetTokenizer.from_pretrained('xlnet-large-cased')
-    model = XLNetModel.from_pretrained('xlnet-large-cased')
+    #tokenizer = XLNetTokenizer.from_pretrained('xlnet-base-cased')
+    #model = XLNetModel.from_pretrained('xlnet-base-cased')
+    #tokenizer = BertTokenizer.from_pretrained('bert-large-cased-whole-word-masking')
+    #model = BertModel.from_pretrained('bert-large-cased-whole-word-masking')
+    tokenizer = RobertaTokenizer.from_pretrained('roberta-large')
+    model = RobertaModel.from_pretrained('roberta-large')
     model = model.to(device)
 
     # get label embedding
@@ -37,6 +41,7 @@ def main(args):
     label_embedding = torch.cat(label_embedding, dim=0)
     label_embedding = label_embedding.cpu().numpy()
     label_embedding = sp.csr_matrix(label_embedding)
+    label_embedding = normalize(label_embedding, axis=1, norm='l2')
 
   elif args.embed_type == 'pifa':
     # load TF-IDF and label matrix
@@ -48,20 +53,6 @@ def main(args):
     # create label embedding
     Y_avg = normalize(Y, axis=1, norm='l2')
     label_embedding = sp.csr_matrix(Y_avg.T.dot(X))
-    label_embedding = normalize(label_embedding, axis=1, norm='l2')
-
-  elif args.embed_type == 'pifa-tst':
-    # load TF-IDF and label matrix
-    X_trn = sp.load_npz("./{}/X.trn.npz".format(args.dataset))
-    X_tst = sp.load_npz("./{}/X.tst.npz".format(args.dataset))
-    Y_trn = sp.load_npz("./{}/Y.trn.npz".format(args.dataset))
-    Y_tst = sp.load_npz("./{}/Y.tst.npz".format(args.dataset))
-    print('X_trn', type(X_trn), X_trn.shape, 'X_tst', type(X_tst), X_tst.shape)
-    print('Y_trn', type(Y_trn), Y_trn.shape, 'Y_tst', type(Y_tst), Y_tst.shape)
-    X_all = sp.vstack([X_trn, X_tst])
-    Y_all = sp.vstack([Y_trn, Y_tst])
-    Y_avg = normalize(Y_all, axis=1, norm='l2')
-    label_embedding = sp.csr_matrix(Y_avg.T.dot(X_all))
     label_embedding = normalize(label_embedding, axis=1, norm='l2')
 
   elif args.embed_type == 'pifa-neural':
