@@ -47,7 +47,7 @@ for LABEL_NAME in "${LABEL_NAME_ARR[@]}"; do
         -x datasets/${DATASET}/X.tst.npz \
         -x2 ${OUTPUT_DIR}/matcher-cased_fp32/${MODEL_NAME}/final_model/tst_embeddings.npy \
         -y datasets/${DATASET}/Y.tst.npz \
-        -c ${OUTPUT_DIR}/matcher-cased/${MODEL_NAME}/final_model/C_tst_pred.npz
+        -c ${OUTPUT_DIR}/matcher-cased_fp32/${MODEL_NAME}/final_model/C_tst_pred.npz
 
       PRED_NPZ_PATHS="${PRED_NPZ_PATHS} ${PRED_NPZ_PATH}"
   done
