@@ -12,28 +12,9 @@ OUTPUT_DIR=save_models/${DATASET}/${INDEXER_NAME}
 MAX_XSEQ_LEN=128
 
 # set per_gpu_bsz by model_type
-if [ ${MODEL_TYPE} == "bert" ] || [ ${MODEL_TYPE} == "roberta" ]; then
-  # fp16
-  #PER_GPU_TRN_BSZ=64    # 2080Ti
-  #PER_GPU_VAL_BSZ=64
-  #GRAD_ACCU_STEPS=2
-  # fp32
-  PER_GPU_TRN_BSZ=32    # 2080Ti
-  PER_GPU_VAL_BSZ=64
-  GRAD_ACCU_STEPS=2
-elif [ ${MODEL_TYPE} == "xlnet" ]; then
-  # fp16
-  #PER_GPU_TRN_BSZ=32    # 2080Ti
-  #PER_GPU_TRN_BSZ=50    # V100
-  #GRAD_ACCU_STEPS=2
-  # fp32
-  PER_GPU_TRN_BSZ=32    # 2080Ti
-  PER_GPU_VAL_BSZ=64
-  GRAD_ACCU_STEPS=2
-else
-  echo "model_type not support [ bert | roberta | xlnet ]"
-  exit
-fi
+PER_GPU_TRN_BSZ=32    # 2080Ti
+PER_GPU_VAL_BSZ=64
+GRAD_ACCU_STEPS=2
 
 # set hyper-params by dataset
 if [ ${DATASET} == "Eurlex-4K" ]; then
@@ -53,13 +34,13 @@ elif [ ${DATASET} == "AmazonCat-13K" ]; then
   WARMUP_STEPS_ARR=( 2000 )
   LOGGING_STEPS=100
   SAVE_STEPS=2000
-  LEARNING_RATE_ARR=( 8e-5 )
+  LEARNING_RATE_ARR=( 1e-4 )
 elif [ ${DATASET} == "Wiki-500K" ]; then
   MAX_STEPS_ARR=( 40000 )
   WARMUP_STEPS_ARR=( 4000 )
   LOGGING_STEPS=100
   SAVE_STEPS=4000
-  LEARNING_RATE_ARR=( 8e-5 )
+  LEARNING_RATE_ARR=( 1e-4 )
 else
   echo "dataset not support [ Eurlex-4K | Wiki10-31K | AmazonCat-13K | Wiki-500K ]"
   exit

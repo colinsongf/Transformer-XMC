@@ -38,15 +38,26 @@ class HingeLoss(nn.Module):
     self.margin = margin
     self.squared = squared
 
-  def forward(self, f, y, C_pos=1.0, C_neg=0.1):
+  def forward(self, f, y, C_pos=1.0, C_neg=1.0):
     # convert y into {-1,1}
     y_new = 2.*y - 1.0
-    loss = F.relu(self.margin - y_new*f)
+    tmp = y_new * f
+
+    # Hinge loss
+    loss = F.relu(self.margin - tmp)
     if self.squared:
       loss = loss**2
     loss = loss * (C_pos * y + C_neg * (1. - y))
     return loss.mean()
-
+    # ELU loss
+    #loss = F.relu(self.margin - tmp)
+    #tmp_2 = torch.exp(-tmp + self.margin) - 1.
+    #tmp_2[tmp_2 > 0] = 0.0
+    #loss += tmp_2
+    #return loss.mean()
+    # BCE loss
+    #loss = F.binary_cross_entropy_with_logits(f, y)
+    #return loss.mean()
 
 @add_start_docstrings(
   """Bert Model transformer with a sequence classification  head on top (a linear layer on top of

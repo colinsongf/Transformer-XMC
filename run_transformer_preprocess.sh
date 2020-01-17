@@ -27,7 +27,6 @@ INDEXER_NAME=text-emb-a5-s0
 # HuggingFace pretrained model preprocess
 MODEL_TYPE_ARR=( "bert" "roberta" "xlnet")
 MODEL_NAME_ARR=( "bert-base-cased" "roberta-base" "xlnet-base-cased" )
-#MODEL_NAME_ARR=( "bert-large-cased-whole-word-masking" "roberta-large" "xlnet-large-cased" )
 
 for idx in "${!MODEL_TYPE_ARR[@]}"; do
 	MODEL_TYPE=${MODEL_TYPE_ARR[${idx}]}

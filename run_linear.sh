@@ -23,12 +23,12 @@ ALGO_LIST=( 5 )
 SEED_LIST=( 0 1 2 )
 
 LABEL_EMB_LIST=( pifa )
-LABEL_EMB_LIST=( pifa-neural )
-LABEL_EMB_LIST=( text-emb )
+#LABEL_EMB_LIST=( pifa-neural )
+#LABEL_EMB_LIST=( text-emb )
 
 EXP_NAME=pifa
-EXP_NAME=pifa-neural
-EXP_NAME=text-emb
+#EXP_NAME=pifa-neural
+#EXP_NAME=text-emb
 PRED_NPZ_PATHS=""
 for idx in "${!LABEL_EMB_LIST[@]}"; do
 	ALGO=${ALGO_LIST[$idx]}
