@@ -22,12 +22,12 @@ DATASET=$1
 ALGO_LIST=( 5 )
 SEED_LIST=( 0 1 2 )
 
-LABEL_EMB_LIST=( pifa )
+#LABEL_EMB_LIST=( pifa )
 #LABEL_EMB_LIST=( pifa-neural )
-#LABEL_EMB_LIST=( text-emb )
+LABEL_EMB_LIST=( text-emb )
 
-EXP_NAME=pifa
-#EXP_NAME=pifa-neural
+#EXP_NAME=pifa
+EXP_NAME=pifa-neural
 #EXP_NAME=text-emb
 PRED_NPZ_PATHS=""
 for idx in "${!LABEL_EMB_LIST[@]}"; do
@@ -62,6 +62,6 @@ for idx in "${!LABEL_EMB_LIST[@]}"; do
 done
 
 # final eval
-EVAL_DIR=results_01-11/${DATASET}
+EVAL_DIR=results_linear/${DATASET}
 mkdir -p ${EVAL_DIR}
 python -u -m xbert.evaluator -y datasets/${DATASET}/Y.tst.npz -e -p ${PRED_NPZ_PATHS} |& tee ${EVAL_DIR}/${EXP_NAME}.txt
