@@ -1059,7 +1059,7 @@ struct SVMJob {
             }
         }
         if(param_ptr->bias > 0 && fabs(worker.bb) >= threshold) {
-            W.at(w_size, subcode) = worker.bb;
+            W.at(worker.w_size, subcode) = worker.bb;
         }
     }
 
