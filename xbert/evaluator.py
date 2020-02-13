@@ -28,6 +28,8 @@ def main(args):
             raise Warning("pred_path does not exists: {}".format(pred_path))
         else:
             Y_pred = smat.load_npz(pred_path)
+            Y_pred.data = rf_linear.Transform.sigmoid(Y_pred.data)
+
             Y_pred_list += [Y_pred]
             print("==== Evaluation on {}".format(pred_path))
             print(rf_linear.Metrics.generate(Y_true, Y_pred))

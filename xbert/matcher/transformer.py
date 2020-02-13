@@ -111,475 +111,313 @@ def transform_prediction(csr_codes, transform="lpsvm-l2"):
 
 
 class TransformerMatcher(object):
-    """ TODO Doc"""
+  """ TODO Doc"""
+  def __init__(self, model=None, num_clusters=None):
+    self.model = model
+    self.num_clusters = num_clusters
 
-    def __init__(self, model=None, num_clusters=None):
-        self.model = model
-        self.num_clusters = num_clusters
+  @staticmethod
+  def get_args_and_set_logger():
+    global logger
+    logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
+                        datefmt = '%m/%d/%Y %H:%M:%S',
+                        level = logging.INFO)
+    logger = logging.getLogger(__name__)
+    parser = argparse.ArgumentParser(description='')
 
-    @staticmethod
-    def get_args_and_set_logger():
-        global logger
-        logging.basicConfig(
-            format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
-            datefmt="%m/%d/%Y %H:%M:%S",
-            level=logging.INFO,
-        )
-        logger = logging.getLogger(__name__)
-        parser = argparse.ArgumentParser(description="")
+    ## Required parameters
+    parser.add_argument("-m", '--model-type', type=str, required=True,
+                        default='bert',
+                        help='preprocess for model-type [bert | xlnet | xlm | roberta]')
+    parser.add_argument("-n", "--model_name_or_path", type=str, required=True,
+                        default='bert-base-uncased',
+                        help="Path to pre-trained model or shortcut name selected in the list: " + ", ".join(ALL_MODELS))
+    parser.add_argument("-i", "--data_bin_path", default=None, type=str, required=True,
+                        help="The input data dir. Should contain the .tsv files (or other data files) for the task.")
+    parser.add_argument("-o", "--output_dir", default=None, type=str, required=True,
+                        help="The output directory where the model predictions and checkpoints will be written.")
+    ## Other parameters
+    parser.add_argument("--config_name", default="", type=str,
+                        help="Pretrained config name or path if not the same as model_name")
+    parser.add_argument("--cache_dir", default="", type=str,
+                        help="Where do you want to store the pre-trained models downloaded from s3")
+    parser.add_argument("--do_train", action='store_true',
+                        help="Whether to run training.")
+    parser.add_argument("--do_eval", action='store_true',
+                        help="Whether to run eval on the dev set.")
+    parser.add_argument("--do_embedding", action='store_true',
+                        help="Whether to get embedding on the dev set.")
+    parser.add_argument("--stop_by_dev", action='store_true',
+                        help="Whether to run eval on the dev set.")
+    parser.add_argument("--hidden_dropout_prob", default=0.1, type=float,
+                        help="hidden dropout prob in deep transformer models.")
+    parser.add_argument("--per_gpu_train_batch_size", default=8, type=int,
+                        help="Batch size per GPU/CPU for training.")
+    parser.add_argument("--per_gpu_eval_batch_size", default=8, type=int,
+                        help="Batch size per GPU/CPU for evaluation.")
+    parser.add_argument('--gradient_accumulation_steps', type=int, default=1,
+                        help="Number of updates steps to accumulate before performing a backward/update pass.")
+    parser.add_argument("--learning_rate", default=5e-5, type=float,
+                        help="The initial learning rate for Adam.")
+    parser.add_argument("--weight_decay", default=0.0, type=float,
+                        help="Weight deay if we apply some.")
+    parser.add_argument("--adam_epsilon", default=1e-8, type=float,
+                        help="Epsilon for Adam optimizer.")
+    parser.add_argument("--max_grad_norm", default=1.0, type=float,
+                        help="Max gradient norm.")
+    parser.add_argument("--num_train_epochs", default=5.0, type=float,
+                        help="Total number of training epochs to perform.")
+    parser.add_argument("--max_steps", default=-1, type=int,
+                        help="If > 0: set total number of training steps to perform. Override num_train_epochs.")
+    parser.add_argument("--warmup_steps", default=0, type=int,
+                        help="Linear warmup over warmup_steps.")
+    parser.add_argument('--logging_steps', type=int, default=50,
+                        help="Log every X updates steps.")
+    parser.add_argument('--save_steps', type=int, default=100,
+                        help="Save checkpoint every X updates steps.")
 
-        ## Required parameters
-        parser.add_argument(
-            "-m",
-            "--model-type",
-            type=str,
-            required=True,
-            default="bert",
-            help="preprocess for model-type [bert | xlnet | xlm | roberta]",
-        )
-        parser.add_argument(
-            "-n",
-            "--model_name_or_path",
-            type=str,
-            required=True,
-            default="bert-base-uncased",
-            help="Path to pre-trained model or shortcut name selected in the list: "
-            + ", ".join(ALL_MODELS),
-        )
-        parser.add_argument(
-            "-i",
-            "--data_bin_path",
-            default=None,
-            type=str,
-            required=True,
-            help="The input data dir. Should contain the .tsv files (or other data files) for the task.",
-        )
-        parser.add_argument(
-            "-o",
-            "--output_dir",
-            default=None,
-            type=str,
-            required=True,
-            help="The output directory where the model predictions and checkpoints will be written.",
-        )
-        ## Other parameters
-        parser.add_argument(
-            "--config_name",
-            default="",
-            type=str,
-            help="Pretrained config name or path if not the same as model_name",
-        )
-        parser.add_argument(
-            "--cache_dir",
-            default="",
-            type=str,
-            help="Where do you want to store the pre-trained models downloaded from s3",
-        )
-        parser.add_argument(
-            "--do_train", action="store_true", help="Whether to run training."
-        )
-        parser.add_argument(
-            "--do_eval", action="store_true", help="Whether to run eval on the dev set."
-        )
-        parser.add_argument(
-            "--stop_by_dev",
-            action="store_true",
-            help="Whether to run eval on the dev set.",
-        )
-        parser.add_argument(
-            "--hidden_dropout_prob",
-            default=0.1,
-            type=float,
-            help="hidden dropout prob in deep transformer models.",
-        )
-        parser.add_argument(
-            "--per_gpu_train_batch_size",
-            default=8,
-            type=int,
-            help="Batch size per GPU/CPU for training.",
-        )
-        parser.add_argument(
-            "--per_gpu_eval_batch_size",
-            default=8,
-            type=int,
-            help="Batch size per GPU/CPU for evaluation.",
-        )
-        parser.add_argument(
-            "--gradient_accumulation_steps",
-            type=int,
-            default=1,
-            help="Number of updates steps to accumulate before performing a backward/update pass.",
-        )
-        parser.add_argument(
-            "--learning_rate",
-            default=5e-5,
-            type=float,
-            help="The initial learning rate for Adam.",
-        )
-        parser.add_argument(
-            "--weight_decay",
-            default=0.0,
-            type=float,
-            help="Weight deay if we apply some.",
-        )
-        parser.add_argument(
-            "--adam_epsilon",
-            default=1e-8,
-            type=float,
-            help="Epsilon for Adam optimizer.",
-        )
-        parser.add_argument(
-            "--max_grad_norm", default=1.0, type=float, help="Max gradient norm."
-        )
-        parser.add_argument(
-            "--num_train_epochs",
-            default=5.0,
-            type=float,
-            help="Total number of training epochs to perform.",
-        )
-        parser.add_argument(
-            "--max_steps",
-            default=-1,
-            type=int,
-            help="If > 0: set total number of training steps to perform. Override num_train_epochs.",
-        )
-        parser.add_argument(
-            "--warmup_steps",
-            default=0,
-            type=int,
-            help="Linear warmup over warmup_steps.",
-        )
-        parser.add_argument(
-            "--logging_steps", type=int, default=50, help="Log every X updates steps."
-        )
-        parser.add_argument(
-            "--save_steps",
-            type=int,
-            default=100,
-            help="Save checkpoint every X updates steps.",
-        )
+    parser.add_argument("--loss_func", default='l2-hinge', type=str,
+                        help="loss function: bce | l1-hinge | l2-hinge")
+    parser.add_argument('--margin', default=1.0, type=float,
+                        help='margin in hinge loss')
+    parser.add_argument('--only_topk', default=10, type=int, help='store topk prediction for matching stage')
 
-        parser.add_argument(
-            "--loss_func",
-            default="l2-hinge",
-            type=str,
-            help="loss function: bce | l1-hinge | l2-hinge",
-        )
-        parser.add_argument(
-            "--margin", default=1.0, type=float, help="margin in hinge loss"
-        )
-        parser.add_argument(
-            "--only_topk",
-            default=10,
-            type=int,
-            help="store topk prediction for matching stage",
-        )
+    parser.add_argument("--no_cuda", action='store_true',
+                        help="Avoid using CUDA when available")
+    parser.add_argument('--overwrite_output_dir', action='store_true',
+                        help="Overwrite the content of the output directory")
+    parser.add_argument('--overwrite_cache', action='store_true',
+                        help="Overwrite the cached training and evaluation sets")
+    parser.add_argument('--seed', type=int, default=42,
+                        help="random seed for initialization")
 
-        parser.add_argument(
-            "--no_cuda", action="store_true", help="Avoid using CUDA when available"
-        )
-        parser.add_argument(
-            "--overwrite_output_dir",
-            action="store_true",
-            help="Overwrite the content of the output directory",
-        )
-        parser.add_argument(
-            "--overwrite_cache",
-            action="store_true",
-            help="Overwrite the cached training and evaluation sets",
-        )
-        parser.add_argument(
-            "--seed", type=int, default=42, help="random seed for initialization"
-        )
+    parser.add_argument('--fp16', action='store_true',
+                        help="Whether to use 16-bit (mixed) precision (through NVIDIA apex) instead of 32-bit")
+    parser.add_argument('--fp16_opt_level', type=str, default='O1',
+                        help="For fp16: Apex AMP optimization level selected in ['O0', 'O1', 'O2', and 'O3']."
+                        "See details at https://nvidia.github.io/apex/amp.html")
+    parser.add_argument("--local_rank", type=int, default=-1,
+                        help="For distributed training: local_rank")
+    parser.add_argument('--server_ip', type=str, default='', help="For distant debugging.")
+    parser.add_argument('--server_port', type=str, default='', help="For distant debugging.")
 
-        parser.add_argument(
-            "--fp16",
-            action="store_true",
-            help="Whether to use 16-bit (mixed) precision (through NVIDIA apex) instead of 32-bit",
-        )
-        parser.add_argument(
-            "--fp16_opt_level",
-            type=str,
-            default="O1",
-            help="For fp16: Apex AMP optimization level selected in ['O0', 'O1', 'O2', and 'O3']."
-            "See details at https://nvidia.github.io/apex/amp.html",
-        )
-        parser.add_argument(
-            "--local_rank",
-            type=int,
-            default=-1,
-            help="For distributed training: local_rank",
-        )
-        parser.add_argument(
-            "--server_ip", type=str, default="", help="For distant debugging."
-        )
-        parser.add_argument(
-            "--server_port", type=str, default="", help="For distant debugging."
-        )
+    args = parser.parse_args()
+    print(args)
+    return {'parser': parser, 'logger': logger, 'args': args}
 
-        args = parser.parse_args()
-        print(args)
-        return {"parser": parser, "logger": logger, "args": args}
+  @staticmethod
+  def load_data(args):
+    with open(args.data_bin_path, 'rb') as fin:
+      data_dict = pickle.load(fin)
+    trn_features = data_dict['trn_features']
+    tst_features = data_dict['tst_features']
+    num_labels = data_dict['C'].shape[0]
+    num_clusters = data_dict['C'].shape[1]
+    logger.info('TRN {} TST {}'.format(len(trn_features), len(tst_features)))
+    logger.info('NUM_LABEL {}'.format(num_labels))
+    logger.info('NUM_CLUSTER {}'.format(num_clusters))
 
-    @staticmethod
-    def load_data(args):
-        with open(args.data_bin_path, "rb") as fin:
-            data_dict = pickle.load(fin)
-        trn_features = data_dict["trn_features"]
-        tst_features = data_dict["tst_features"]
-        num_labels = data_dict["C"].shape[0]
-        num_clusters = data_dict["C"].shape[1]
-        logger.info("TRN {} TST {}".format(len(trn_features), len(tst_features)))
-        logger.info("NUM_LABEL {}".format(num_labels))
-        logger.info("NUM_CLUSTER {}".format(num_clusters))
+    # load Y csr matrix
+    C_trn = data_utils.Ylist_to_Ysparse(data_dict['trn']['cseq'], L=num_clusters)
+    C_tst = data_utils.Ylist_to_Ysparse(data_dict['tst']['cseq'], L=num_clusters)
+    return {'trn_features': trn_features, 'tst_features': tst_features,
+            'num_labels': num_labels, 'num_clusters': num_clusters,
+            'C_trn': C_trn, 'C_tst': C_tst}
 
-        # load Y csr matrix
-        C_trn = data_utils.Ylist_to_Ysparse(data_dict["trn"]["cseq"], L=num_clusters)
-        C_tst = data_utils.Ylist_to_Ysparse(data_dict["tst"]["cseq"], L=num_clusters)
-        return {
-            "trn_features": trn_features,
-            "tst_features": tst_features,
-            "num_labels": num_labels,
-            "num_clusters": num_clusters,
-            "C_trn": C_trn,
-            "C_tst": C_tst,
-        }
+  @staticmethod
+  def bootstrap_for_training(args):
+    """ set device for multi-gpu training, and fix random seed, and exp logging. """
 
-    @staticmethod
-    def bootstrap_for_training(args):
-        """ set device for multi-gpu training, and fix random seed, and exp logging. """
+    if os.path.exists(args.output_dir) and os.listdir(args.output_dir) and args.do_train and not args.overwrite_output_dir:
+      raise ValueError("Output directory ({}) already exists and is not empty. Use --overwrite_output_dir to overcome.".format(args.output_dir))
+    if not os.path.exists(args.output_dir):
+      os.makedirs(args.output_dir)
 
-        if (
-            os.path.exists(args.output_dir)
-            and os.listdir(args.output_dir)
-            and args.do_train
-            and not args.overwrite_output_dir
-        ):
-            raise ValueError(
-                "Output directory ({}) already exists and is not empty. Use --overwrite_output_dir to overcome.".format(
-                    args.output_dir
-                )
-            )
-        if not os.path.exists(args.output_dir):
-            os.makedirs(args.output_dir)
+    # Setup distant debugging if needed
+    if args.server_ip and args.server_port:
+      # Distant debugging - see https://code.visualstudio.com/docs/python/debugging#_attach-to-a-local-script
+      import ptvsd
+      print("Waiting for debugger attach")
+      ptvsd.enable_attach(address=(args.server_ip, args.server_port), redirect_output=True)
+      ptvsd.wait_for_attach()
 
-        # Setup distant debugging if needed
-        if args.server_ip and args.server_port:
-            # Distant debugging - see https://code.visualstudio.com/docs/python/debugging#_attach-to-a-local-script
-            import ptvsd
+    # Setup CUDA, GPU & distributed training
+    if args.local_rank == -1 or args.no_cuda:
+      device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
+      args.n_gpu = torch.cuda.device_count()
+    else:  # Initializes the distributed backend which will take care of sychronizing nodes/GPUs
+      torch.cuda.set_device(args.local_rank)
+      device = torch.device("cuda", args.local_rank)
+      torch.distributed.init_process_group(backend='nccl')
+      args.n_gpu = 1
+    args.device = device
 
-            print("Waiting for debugger attach")
-            ptvsd.enable_attach(
-                address=(args.server_ip, args.server_port), redirect_output=True
-            )
-            ptvsd.wait_for_attach()
+    logger.info("Process rank: %s, device: %s, n_gpu: %s, distributed training: %s, 16-bits training: %s",
+                args.local_rank, args.device, args.n_gpu, bool(args.local_rank != -1), args.fp16)
 
-        # Setup CUDA, GPU & distributed training
-        if args.local_rank == -1 or args.no_cuda:
-            device = torch.device(
-                "cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu"
-            )
-            args.n_gpu = torch.cuda.device_count()
-        else:  # Initializes the distributed backend which will take care of sychronizing nodes/GPUs
-            torch.cuda.set_device(args.local_rank)
-            device = torch.device("cuda", args.local_rank)
-            torch.distributed.init_process_group(backend="nccl")
-            args.n_gpu = 1
-        args.device = device
+    # Set seed
+    set_seed(args)
 
-        logger.info(
-            "Process rank: %s, device: %s, n_gpu: %s, distributed training: %s, 16-bits training: %s",
-            args.local_rank,
-            args.device,
-            args.n_gpu,
-            bool(args.local_rank != -1),
-            args.fp16,
-        )
+  def prepare_model(self, args, num_clusters):
+    """ Load a pretrained model for sequence classification. """
+    if args.local_rank not in [-1, 0]:
+      torch.distributed.barrier()  # Make sure only the first process in distributed training will download model & vocab
 
-        # Set seed
-        set_seed(args)
+    args.model_type = args.model_type.lower()
+    config_class, model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
+    config = config_class.from_pretrained(args.config_name if args.config_name else args.model_name_or_path,
+                                          hidden_dropout_prob = args.hidden_dropout_prob,
+                                          num_labels=num_clusters,
+                                          finetuning_task=None,
+                                          cache_dir=args.cache_dir if args.cache_dir else None)
+    model = model_class.from_pretrained(args.model_name_or_path,
+                                        from_tf=bool('.ckpt' in args.model_name_or_path),
+                                        config=config,
+                                        cache_dir=args.cache_dir if args.cache_dir else None)
 
-    def prepare_model(self, args, num_clusters):
-        """ Load a pretrained model for sequence classification. """
-        if args.local_rank not in [-1, 0]:
-            torch.distributed.barrier()  # Make sure only the first process in distributed training will download model & vocab
-
-        args.model_type = args.model_type.lower()
-        config_class, model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
-        config = config_class.from_pretrained(
-            args.config_name if args.config_name else args.model_name_or_path,
-            hidden_dropout_prob=args.hidden_dropout_prob,
-            num_labels=num_clusters,
-            finetuning_task=None,
-            cache_dir=args.cache_dir if args.cache_dir else None,
-        )
-        model = model_class.from_pretrained(
-            args.model_name_or_path,
-            from_tf=bool(".ckpt" in args.model_name_or_path),
-            config=config,
-            cache_dir=args.cache_dir if args.cache_dir else None,
-        )
-
-        if args.local_rank == 0:
-            torch.distributed.barrier()  # Make sure only the first process in distributed training will download model & vocab
-        model.to(args.device)
+    if args.local_rank == 0:
+      torch.distributed.barrier()  # Make sure only the first process in distributed training will download model & vocab
+    model.to(args.device)
 
         # overwrite
-        self.config = config
-        self.model = model
-        self.num_clusters = num_clusters
+    self.config = config
+    self.model = model
+    self.num_clusters = num_clusters
 
-    def save_model(self, args):
-        # Save model checkpoint
-        if not os.path.exists(args.output_dir):
-            os.makedirs(args.output_dir)
-        model_to_save = (
-            self.model.module if hasattr(self.model, "module") else self.model
-        )  # Take care of distributed/parallel training
-        model_to_save.save_pretrained(args.output_dir)
-        torch.save(args, os.path.join(args.output_dir, "training_args.bin"))
+  def save_model(self, args):
+    # Save model checkpoint
+    if not os.path.exists(args.output_dir):
+      os.makedirs(args.output_dir)
+    model_to_save = self.model.module if hasattr(self.model, 'module') else self.model  # Take care of distributed/parallel training
+    model_to_save.save_pretrained(args.output_dir)
+    torch.save(args, os.path.join(args.output_dir, 'training_args.bin'))
 
-    def predict(self, args, eval_features, C_eval_true, topk=10, get_hidden=False):
-        """Prediction interface"""
-        args.eval_batch_size = args.per_gpu_eval_batch_size * max(1, args.n_gpu)
-        all_input_ids = torch.tensor(
-            [f.input_ids for f in eval_features], dtype=torch.long
-        )
-        all_attention_mask = torch.tensor(
-            [f.attention_mask for f in eval_features], dtype=torch.long
-        )
-        all_token_type_ids = torch.tensor(
-            [f.token_type_ids for f in eval_features], dtype=torch.long
-        )
-        all_output_ids = torch.tensor(
-            [f.output_ids for f in eval_features], dtype=torch.long
-        )
-        all_output_mask = torch.tensor(
-            [f.output_mask for f in eval_features], dtype=torch.long
-        )
-        eval_data = TensorDataset(
-            all_input_ids,
-            all_attention_mask,
-            all_token_type_ids,
-            all_output_ids,
-            all_output_mask,
-        )
 
-        # Note that DistributedSampler samples randomly
-        eval_sampler = (
-            SequentialSampler(eval_data)
-            if args.local_rank == -1
-            else DistributedSampler(eval_data)
-        )
-        eval_dataloader = DataLoader(
-            eval_data,
-            sampler=eval_sampler,
-            batch_size=args.eval_batch_size,
-            num_workers=4,
-        )
+  def get_embedding(self, args, eval_features):
+    """Get embedding interface"""
+    args.eval_batch_size = args.per_gpu_eval_batch_size * max(1, args.n_gpu)
+    all_input_ids = torch.tensor([f.input_ids for f in eval_features], dtype=torch.long)
+    all_attention_mask = torch.tensor([f.attention_mask for f in eval_features], dtype=torch.long)
+    all_token_type_ids = torch.tensor([f.token_type_ids for f in eval_features], dtype=torch.long)
+    all_output_ids = torch.tensor([f.output_ids for f in eval_features], dtype=torch.long)
+    all_output_mask = torch.tensor([f.output_mask for f in eval_features], dtype=torch.long)
+    eval_data = TensorDataset(all_input_ids, all_attention_mask, all_token_type_ids, all_output_ids, all_output_mask)
 
-        # multi-gpu eval
-        if args.n_gpu > 1 and not isinstance(self.model, torch.nn.DataParallel):
-            self.model = torch.nn.DataParallel(self.model)
+    # Note that DistributedSampler samples randomly
+    eval_sampler = SequentialSampler(eval_data) if args.local_rank == -1 else DistributedSampler(eval_data)
+    eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.eval_batch_size, num_workers=4)
 
-        logger.info("***** Running evaluation *****")
-        logger.info("  Num examples = %d", len(eval_features))
-        logger.info("  Batch size = %d", args.eval_batch_size)
+    # multi-gpu eval
+    if args.n_gpu > 1 and not isinstance(self.model, torch.nn.DataParallel):
+      self.model = torch.nn.DataParallel(self.model)
 
-        total_loss = 0.0
-        total_example = 0.0
-        rows, cols, vals = [], [], []
-        all_pooled_output = []
-        for batch in eval_dataloader:
-            self.model.eval()
-            batch = tuple(t.to(args.device) for t in batch)
+    logger.info("***** Running evaluation *****")
+    logger.info("  Num examples = %d", len(eval_features))
+    logger.info("  Batch size = %d", args.eval_batch_size)
 
-            with torch.no_grad():
-                inputs = {
-                    "input_ids": batch[0],
-                    "attention_mask": batch[1],
-                    "output_ids": batch[3],
-                    "output_mask": batch[4],
-                    "labels": None,
-                }
-                if args.model_type != "distilbert":
-                    inputs["token_type_ids"] = (
-                        batch[2] if args.model_type in ["bert", "xlnet"] else None
-                    )  # XLM, DistilBERT and RoBERTa don't use segment_ids
-                cur_batch_size = inputs["input_ids"].size(0)
+    total_example = 0.
+    all_pooled_output = []
+    for batch in eval_dataloader:
+      self.model.eval()
+      batch = tuple(t.to(args.device) for t in batch)
 
-                # forward
-                outputs = self.model(
-                    input_ids=inputs["input_ids"],
-                    attention_mask=inputs["attention_mask"],
-                    token_type_ids=inputs["token_type_ids"],
-                    output_ids=inputs["output_ids"],
-                    output_mask=inputs["output_mask"],
-                )
-                if get_hidden and self.config.output_hidden_states:
-                    loss, c_pred, hidden_states = outputs[0], outputs[1], outputs[2]
-                else:
-                    loss, c_pred = outputs[0], outputs[1]
-                if args.n_gpu > 1:
-                    loss = (
-                        loss.mean()
-                    )  # mean() to average on multi-gpu parallel training
-                total_loss += cur_batch_size * loss
+      with torch.no_grad():
+        inputs = {'input_ids':      batch[0],
+                  'attention_mask': batch[1],
+                  'output_ids':     batch[3],
+                  'output_mask':    batch[4],
+                  'labels':         None}
+        if args.model_type != 'distilbert':
+          inputs['token_type_ids'] = batch[2] if args.model_type in ['bert', 'xlnet'] else None  # XLM, DistilBERT and RoBERTa don't use segment_ids
+        cur_batch_size = inputs['input_ids'].size(0)
 
-                # get pooled_output, which is the [CLS] embedding for the document
-                # assume self.model hasattr module because torch.nn.DataParallel
-                if get_hidden:
-                    if args.model_type == "bert":
-                        pooled_output = self.model.module.bert.pooler(hidden_states[-1])
-                        pooled_output = self.model.module.dropout(pooled_output)
-                        # logits = self.model.classifier(pooled_output)
-                    elif args.model_type == "roberta":
-                        pooled_output = self.model.module.classifier.dropout(
-                            hidden_states[-1][:, 0, :]
-                        )
-                        pooled_output = self.model.module.classifier.dense(
-                            pooled_output
-                        )
-                        pooled_output = torch.tanh(pooled_output)
-                        pooled_output = self.model.module.classifier.dropout(
-                            pooled_output
-                        )
-                        # logits = self.model.classifier.out_proj(pooled_output)
-                    elif args.model_type == "xlnet":
-                        pooled_output = self.model.module.sequence_summary(
-                            hidden_states[-1]
-                        )
-                        # logits = self.model.logits_proj(pooled_output)
-                    else:
-                        raise NotImplementedError(
-                            "unknown args.model_type {}".format(args.model_type)
-                        )
-                    all_pooled_output.append(pooled_output.cpu().numpy())
+        # forward
+        outputs = self.model(input_ids=inputs['input_ids'],
+                             attention_mask=inputs['attention_mask'],
+                             token_type_ids=inputs['token_type_ids'],
+                             output_ids=inputs['output_ids'],
+                             output_mask=inputs['output_mask'],
+                             )
+        loss, c_pred, hidden_states = outputs[0], outputs[1], outputs[2]
 
-            # get topk prediction rows,cols,vals
-            cpred_topk_vals, cpred_topk_cols = c_pred.topk(topk, dim=1)
-            cpred_topk_rows = total_example + torch.arange(cur_batch_size)
-            cpred_topk_rows = cpred_topk_rows.view(cur_batch_size, 1).expand_as(
-                cpred_topk_cols
-            )
-            total_example += cur_batch_size
+        # get pooled_output, which is the [CLS] embedding for the document
+        # assume self.model hasattr module because torch.nn.DataParallel
+        if args.model_type == 'bert':
+          pooled_output = self.model.module.bert.pooler(hidden_states[-1])
+          pooled_output = self.model.module.dropout(pooled_output)
+        elif args.model_type == 'roberta':
+          pooled_output = self.model.module.classifier.dropout(hidden_states[-1][:,0,:])
+          pooled_output = self.model.module.classifier.dense(pooled_output)
+          pooled_output = torch.tanh(pooled_output)
+          pooled_output = self.model.module.classifier.dropout(pooled_output)
+        elif args.model_type == 'xlnet':
+          pooled_output = self.model.module.sequence_summary(hidden_states[-1])
+        else:
+          raise NotImplementedError("unknown args.model_type {}".format(args.model_type))
+        all_pooled_output.append(pooled_output.cpu().numpy())
 
-            # append
-            rows += cpred_topk_rows.numpy().flatten().tolist()
-            cols += cpred_topk_cols.cpu().numpy().flatten().tolist()
-            vals += cpred_topk_vals.cpu().numpy().flatten().tolist()
+    eval_embeddings = np.concatenate(all_pooled_output, axis=0)
+    return eval_embeddings
 
-        eval_loss = total_loss / total_example
-        m = int(total_example)
-        n = self.num_clusters
-        pred_csr_codes = smat.csr_matrix((vals, (rows, cols)), shape=(m, n))
-        pred_csr_codes = rf_util.smat_util.sorted_csr(pred_csr_codes, only_topk=None)
-        C_eval_pred = pred_csr_codes
 
-        # evaluation
-        eval_metrics = rf_linear.Metrics.generate(
-            C_eval_true, C_eval_pred, topk=args.only_topk
-        )
+  def predict(self, args, eval_features, C_eval_true, topk=10, get_hidden=False):
+    """Prediction interface"""
+    args.eval_batch_size = args.per_gpu_eval_batch_size * max(1, args.n_gpu)
+    all_input_ids = torch.tensor([f.input_ids for f in eval_features], dtype=torch.long)
+    all_attention_mask = torch.tensor([f.attention_mask for f in eval_features], dtype=torch.long)
+    all_token_type_ids = torch.tensor([f.token_type_ids for f in eval_features], dtype=torch.long)
+    all_output_ids = torch.tensor([f.output_ids for f in eval_features], dtype=torch.long)
+    all_output_mask = torch.tensor([f.output_mask for f in eval_features], dtype=torch.long)
+    eval_data = TensorDataset(all_input_ids, all_attention_mask, all_token_type_ids, all_output_ids, all_output_mask)
+
+    # Note that DistributedSampler samples randomly
+    eval_sampler = SequentialSampler(eval_data) if args.local_rank == -1 else DistributedSampler(eval_data)
+    eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.eval_batch_size, num_workers=4)
+
+    # multi-gpu eval
+    if args.n_gpu > 1 and not isinstance(self.model, torch.nn.DataParallel):
+      self.model = torch.nn.DataParallel(self.model)
+
+    logger.info("***** Running evaluation *****")
+    logger.info("  Num examples = %d", len(eval_features))
+    logger.info("  Batch size = %d", args.eval_batch_size)
+
+    total_loss = 0.
+    total_example = 0.
+    rows, cols, vals = [], [], []
+    all_pooled_output = []
+    for batch in eval_dataloader:
+      self.model.eval()
+      batch = tuple(t.to(args.device) for t in batch)
+
+      with torch.no_grad():
+        inputs = {'input_ids':      batch[0],
+                  'attention_mask': batch[1],
+                  'output_ids':     batch[3],
+                  'output_mask':    batch[4],
+                  'labels':         None}
+        if args.model_type != 'distilbert':
+          inputs['token_type_ids'] = batch[2] if args.model_type in ['bert', 'xlnet'] else None  # XLM, DistilBERT and RoBERTa don't use segment_ids
+        cur_batch_size = inputs['input_ids'].size(0)
+
+        # forward
+        outputs = self.model(input_ids=inputs['input_ids'],
+                             attention_mask=inputs['attention_mask'],
+                             token_type_ids=inputs['token_type_ids'],
+                             output_ids=inputs['output_ids'],
+                             output_mask=inputs['output_mask'],
+                             )
+        if get_hidden and self.config.output_hidden_states:
+          loss, c_pred, hidden_states = outputs[0], outputs[1], outputs[2]
+        else:
+          loss, c_pred = outputs[0], outputs[1]
+        if args.n_gpu > 1:
+          loss = loss.mean() # mean() to average on multi-gpu parallel training
+        total_loss += cur_batch_size * loss
+
+        # get pooled_output, which is the [CLS] embedding for the document
+        # assume self.model hasattr module because torch.nn.DataParallel
+>>>>>>> update
         if get_hidden:
             eval_embeddings = np.concatenate(all_pooled_output, axis=0)
         else:
@@ -846,91 +684,82 @@ class TransformerMatcher(object):
 
 
 def main():
-    # get args
-    args = TransformerMatcher.get_args_and_set_logger()["args"]
+  # get args
+  args = TransformerMatcher.get_args_and_set_logger()['args']
 
-    # load data
-    data = TransformerMatcher.load_data(args)
-    trn_features = data["trn_features"]
-    tst_features = data["tst_features"]
-    num_clusters = data["num_clusters"]
-    C_trn = data["C_trn"]
-    C_tst = data["C_tst"]
+  # load data
+  data = TransformerMatcher.load_data(args)
+  trn_features = data['trn_features']
+  tst_features = data['tst_features']
+  num_clusters = data['num_clusters']
+  C_trn = data['C_trn']
+  C_tst = data['C_tst']
 
-    # prepare transformer pretrained models
-    TransformerMatcher.bootstrap_for_training(args)
-    matcher = TransformerMatcher()
-    matcher.prepare_model(args, num_clusters)
+  # prepare transformer pretrained models
+  TransformerMatcher.bootstrap_for_training(args)
+  matcher = TransformerMatcher()
+  matcher.prepare_model(args, num_clusters)
 
-    # do_train and save model
-    if args.do_train:
-        n_tst = len(tst_features)
-        n_eval = min(n_tst, 200000)
-        eval_subset = np.random.permutation(np.arange(n_tst))[:n_eval]
-        eval_features = [tst_features[idx] for idx in eval_subset]
-        matcher.train(
-            args, trn_features, eval_features=eval_features, C_eval=C_tst[eval_subset]
-        )
+  # do_train and save model
+  if args.do_train:
+    n_tst = len(tst_features)
+    n_eval = min(n_tst, 200000)
+    eval_subset = np.random.permutation(np.arange(n_tst))[:n_eval]
+    eval_features = [tst_features[idx] for idx in eval_subset]
+    matcher.train(args, trn_features, eval_features=eval_features, C_eval=C_tst[eval_subset])
 
-    # do_eval on test set and save prediction output
-    if args.do_eval:
-        # load best model
-        args.model_type = args.model_type.lower()
-        config_class, model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
-        matcher.config.output_hidden_states = True
-        model = model_class.from_pretrained(
-            args.output_dir,
-            from_tf=False,
-            config=matcher.config,
-            cache_dir=args.cache_dir if args.cache_dir else None,
-        )
-        model.to(args.device)
-        matcher.model = model
-        trn_loss, trn_metrics, C_trn_pred, trn_embeddings = matcher.predict(
-            args, trn_features, C_trn, topk=args.only_topk, get_hidden=True
-        )
-        tst_loss, tst_metrics, C_tst_pred, tst_embeddings = matcher.predict(
-            args, tst_features, C_tst, topk=args.only_topk, get_hidden=True
-        )
-        logger.info(
-            "| matcher_trn_prec {}".format(
-                " ".join("{:4.2f}".format(100 * v) for v in trn_metrics.prec)
-            )
-        )
-        logger.info(
-            "| matcher_trn_recl {}".format(
-                " ".join("{:4.2f}".format(100 * v) for v in trn_metrics.recall)
-            )
-        )
-        logger.info(
-            "| matcher_tst_prec {}".format(
-                " ".join("{:4.2f}".format(100 * v) for v in tst_metrics.prec)
-            )
-        )
-        logger.info(
-            "| matcher_tst_recl {}".format(
-                " ".join("{:4.2f}".format(100 * v) for v in tst_metrics.recall)
-            )
-        )
-        # save C_trn_pred.npz and trn_embedding.npy
-        trn_csr_codes = rf_util.smat_util.sorted_csr(
-            C_trn_pred, only_topk=args.only_topk
-        )
-        trn_csr_codes = transform_prediction(trn_csr_codes, transform="lpsvm-l2")
-        csr_codes_path = os.path.join(args.output_dir, "C_trn_pred.npz")
-        smat.save_npz(csr_codes_path, trn_csr_codes)
-        embedding_path = os.path.join(args.output_dir, "trn_embeddings.npy")
-        np.save(embedding_path, trn_embeddings)
-        # save C_eval_pred.npz and tst_embedding.npy
-        tst_csr_codes = rf_util.smat_util.sorted_csr(
-            C_tst_pred, only_topk=args.only_topk
-        )
-        tst_csr_codes = transform_prediction(tst_csr_codes, transform="lpsvm-l2")
-        csr_codes_path = os.path.join(args.output_dir, "C_tst_pred.npz")
-        smat.save_npz(csr_codes_path, tst_csr_codes)
-        embedding_path = os.path.join(args.output_dir, "tst_embeddings.npy")
-        np.save(embedding_path, tst_embeddings)
+  # do_eval on test set and save prediction output
+  if args.do_eval:
+    # load best model
+    args.model_type = args.model_type.lower()
+    config_class, model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
+    matcher.config.output_hidden_states = True
+    model = model_class.from_pretrained(args.output_dir,
+                                        from_tf=False,
+                                        config=matcher.config,
+                                        cache_dir=args.cache_dir if args.cache_dir else None)
+    model.to(args.device)
+    matcher.model = model
+    trn_loss, trn_metrics, C_trn_pred, trn_embeddings = matcher.predict(args, trn_features, C_trn, topk=args.only_topk, get_hidden=True)
+    tst_loss, tst_metrics, C_tst_pred, tst_embeddings = matcher.predict(args, tst_features, C_tst, topk=args.only_topk, get_hidden=True)
+    logger.info('| matcher_trn_prec {}'.format(' '.join("{:4.2f}".format(100*v) for v in trn_metrics.prec)))
+    logger.info('| matcher_trn_recl {}'.format(' '.join("{:4.2f}".format(100*v) for v in trn_metrics.recall)))
+    logger.info('| matcher_tst_prec {}'.format(' '.join("{:4.2f}".format(100*v) for v in tst_metrics.prec)))
+    logger.info('| matcher_tst_recl {}'.format(' '.join("{:4.2f}".format(100*v) for v in tst_metrics.recall)))
+    # save C_trn_pred.npz and trn_embedding.npy
+    trn_csr_codes = rf_util.smat_util.sorted_csr(C_trn_pred, only_topk=args.only_topk)
+    trn_csr_codes = transform_prediction(trn_csr_codes, transform='lpsvm-l2')
+    csr_codes_path = os.path.join(args.output_dir, 'C_trn_pred.npz')
+    smat.save_npz(csr_codes_path, trn_csr_codes)
+    embedding_path = os.path.join(args.output_dir, 'trn_embeddings.npy')
+    np.save(embedding_path, trn_embeddings)
+    # save C_eval_pred.npz and tst_embedding.npy
+    tst_csr_codes = rf_util.smat_util.sorted_csr(C_tst_pred, only_topk=args.only_topk)
+    tst_csr_codes = transform_prediction(tst_csr_codes, transform='lpsvm-l2')
+    csr_codes_path = os.path.join(args.output_dir, 'C_tst_pred.npz')
+    smat.save_npz(csr_codes_path, tst_csr_codes)
+    embedding_path = os.path.join(args.output_dir, 'tst_embeddings.npy')
+    np.save(embedding_path, tst_embeddings)
+
+  if args.do_embedding:
+    # load best model
+    args.model_type = args.model_type.lower()
+    config_class, model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
+    matcher.config.output_hidden_states = True
+    model = model_class.from_pretrained(args.model_name_or_path,
+                                        from_tf=False,
+                                        config=matcher.config,
+                                        cache_dir=args.cache_dir if args.cache_dir else None)
+    model.to(args.device)
+    matcher.model = model
+    trn_embeddings = matcher.get_embedding(args, trn_features)
+    tst_embeddings = matcher.get_embedding(args, tst_features)
+    # save C_trn_pred.npz and trn_embedding.npy
+    embedding_path = os.path.join(args.output_dir, 'trn_embeddings.v0.npy')
+    np.save(embedding_path, trn_embeddings)
+    embedding_path = os.path.join(args.output_dir, 'tst_embeddings.v0.npy')
+    np.save(embedding_path, tst_embeddings)
 
 
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+  main()

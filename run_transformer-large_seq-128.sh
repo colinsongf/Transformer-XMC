@@ -40,10 +40,11 @@ elif [ ${DATASET} == "AmazonCat-13K" ]; then
   LOGGING_STEPS=100
   SAVE_STEPS=2000
   GRAD_ACCU_STEPS=4
-  LEARNING_RATE_ARR=( 1e-4 )
+  LEARNING_RATE_ARR=( 8e-5 )
 elif [ ${DATASET} == "Wiki-500K" ]; then
   MAX_STEPS_ARR=( 40000 )
-  WARMUP_STEPS_ARR=( 4000 )
+  #WARMUP_STEPS_ARR=( 4000 )
+  WARMUP_STEPS_ARR=( 2000 )    # for xlnet-large-cased
   LOGGING_STEPS=100
   SAVE_STEPS=2000
   GRAD_ACCU_STEPS=4
@@ -76,3 +77,4 @@ for idx in "${!MAX_STEPS_ARR[@]}"; do
       |& tee ${MODEL_DIR}/log.txt
   done
 done
+

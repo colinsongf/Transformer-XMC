@@ -23,8 +23,8 @@ ALGO_LIST=( 5 )
 SEED_LIST=( 0 1 2 )
 
 #LABEL_EMB_LIST=( pifa )
-#LABEL_EMB_LIST=( pifa-neural )
-LABEL_EMB_LIST=( text-emb )
+LABEL_EMB_LIST=( pifa-neural )
+#LABEL_EMB_LIST=( text-emb )
 
 #EXP_NAME=pifa
 EXP_NAME=pifa-neural
@@ -41,21 +41,23 @@ for idx in "${!LABEL_EMB_LIST[@]}"; do
 			-i datasets/${DATASET}/L.${LABEL_EMB}.npz \
 			-o ${OUTPUT_DIR}/indexer \
 			-d ${DEPTH} --algo ${ALGO} --seed ${SEED} --max-iter 20
-
 		# ranker (default: matcher=hierarchical linear)
     RANKER_DIR=${OUTPUT_DIR}/ranker
+#: "
 		mkdir -p ${OUTPUT_DIR}/ranker
 		python -m xbert.ranker train \
 			-x datasets/${DATASET}/X.trn.npz \
 			-y datasets/${DATASET}/Y.trn.npz \
 			-c ${OUTPUT_DIR}/indexer/code.npz \
 			-o ${RANKER_DIR} -t 0.01
-
+#"
     PRED_NPZ_PATH=${RANKER_DIR}/tst.pred.linear.npz
+#: "
 		python -m xbert.ranker predict \
       -m ${RANKER_DIR} -o ${PRED_NPZ_PATH} \
 			-x datasets/${DATASET}/X.tst.npz \
 			-y datasets/${DATASET}/Y.tst.npz
+#"
     # append
     PRED_NPZ_PATHS="${PRED_NPZ_PATHS} ${PRED_NPZ_PATH}"
 	done
