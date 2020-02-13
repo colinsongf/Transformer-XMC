@@ -29,8 +29,8 @@ MODEL_NAME_ARR=( bert-large-cased-whole-word-masking_seq-128 roberta-large_seq-1
 
 #LABEL_NAME_ARR=( pifa-a5-s0 )
 #LABEL_NAME_ARR=( pifa-neural-a5-s0 )
-LABEL_NAME_ARR=( text-emb-a5-s0 )
-MODEL_NAME_ARR=( bert-large-cased-whole-word-masking_seq-128 roberta-large_seq-128 )
+#LABEL_NAME_ARR=( text-emb-a5-s0 )
+#MODEL_NAME_ARR=( bert-large-cased-whole-word-masking_seq-128 roberta-large_seq-128 )
 
 for LABEL_NAME in "${LABEL_NAME_ARR[@]}"; do
   OUTPUT_DIR=save_models/${DATASET}/${LABEL_NAME}
@@ -40,23 +40,26 @@ for LABEL_NAME in "${LABEL_NAME_ARR[@]}"; do
 #: "
     mkdir -p ${RANKER_DIR}
     python -m xbert.ranker train \
-      -x datasets/${DATASET}/X.trn.npz \
+      -x1 datasets/${DATASET}/X.trn.npz \
       -x2 ${OUTPUT_DIR}/matcher-cased_fp32/${MODEL_NAME}/final_model/trn_embeddings.npy \
       -y datasets/${DATASET}/Y.trn.npz \
       -z ${OUTPUT_DIR}/matcher-cased_fp32/${MODEL_NAME}/final_model/C_trn_pred.npz \
       -c ${OUTPUT_DIR}/indexer/code.npz \
-      -o ${RANKER_DIR} -t 0.01
+      -o ${RANKER_DIR} -t 0.01 \
+      -f 0 -ns 2 --mode ranker \
 #"
     PRED_NPZ_PATH=${RANKER_DIR}/tst.pred.npz
 #: "
     python -m xbert.ranker predict \
       -m ${RANKER_DIR} -o ${PRED_NPZ_PATH} \
-      -x datasets/${DATASET}/X.tst.npz \
+      -x1 datasets/${DATASET}/X.tst.npz \
       -x2 ${OUTPUT_DIR}/matcher-cased_fp32/${MODEL_NAME}/final_model/tst_embeddings.npy \
       -y datasets/${DATASET}/Y.tst.npz \
-      -c ${OUTPUT_DIR}/matcher-cased_fp32/${MODEL_NAME}/final_model/C_tst_pred.npz -t noop
+      -z ${OUTPUT_DIR}/matcher-cased_fp32/${MODEL_NAME}/final_model/C_tst_pred.npz -t noop \
+      -f 0
 #"
     PRED_NPZ_PATHS="${PRED_NPZ_PATHS} ${PRED_NPZ_PATH}"
+    #exit
   done
 done
 
