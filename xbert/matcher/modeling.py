@@ -10,63 +10,79 @@ from transformers.configuration_bert import BertConfig
 from transformers.configuration_roberta import RobertaConfig
 from transformers.configuration_xlnet import XLNetConfig
 from transformers.modeling_utils import SequenceSummary
-from transformers.modeling_bert import BERT_START_DOCSTRING, BERT_INPUTS_DOCSTRING, BERT_PRETRAINED_MODEL_ARCHIVE_MAP
+from transformers.modeling_bert import (
+    BERT_START_DOCSTRING,
+    BERT_INPUTS_DOCSTRING,
+    BERT_PRETRAINED_MODEL_ARCHIVE_MAP,
+)
 from transformers.modeling_bert import BertModel, BertPreTrainedModel
-from transformers.modeling_roberta import ROBERTA_START_DOCSTRING, ROBERTA_INPUTS_DOCSTRING, ROBERTA_PRETRAINED_MODEL_ARCHIVE_MAP
+from transformers.modeling_roberta import (
+    ROBERTA_START_DOCSTRING,
+    ROBERTA_INPUTS_DOCSTRING,
+    ROBERTA_PRETRAINED_MODEL_ARCHIVE_MAP,
+)
 from transformers.modeling_roberta import RobertaModel, RobertaClassificationHead
-from transformers.modeling_xlnet import XLNET_START_DOCSTRING, XLNET_INPUTS_DOCSTRING, XLNET_PRETRAINED_MODEL_ARCHIVE_MAP
+from transformers.modeling_xlnet import (
+    XLNET_START_DOCSTRING,
+    XLNET_INPUTS_DOCSTRING,
+    XLNET_PRETRAINED_MODEL_ARCHIVE_MAP,
+)
 from transformers.modeling_xlnet import XLNetPreTrainedModel, XLNetModel
 
 
 def repack_output(output_ids, output_mask, num_labels):
-  batch_size = output_ids.size(0)
-  idx_arr = torch.nonzero(output_mask)
-  rows = idx_arr[:,0]
-  cols = output_ids[idx_arr[:,0], idx_arr[:,1]]
-  c_true = torch.zeros((batch_size,num_labels), dtype=torch.float, device=output_ids.device)
-  c_true[rows, cols] = 1.0
-  return c_true
+    batch_size = output_ids.size(0)
+    idx_arr = torch.nonzero(output_mask)
+    rows = idx_arr[:, 0]
+    cols = output_ids[idx_arr[:, 0], idx_arr[:, 1]]
+    c_true = torch.zeros(
+        (batch_size, num_labels), dtype=torch.float, device=output_ids.device
+    )
+    c_true[rows, cols] = 1.0
+    return c_true
 
 
 class HingeLoss(nn.Module):
-  """criterion for loss function
+    """criterion for loss function
     y: 0/1 ground truth matrix of size: batch_size x output_size
     f: real number pred matrix of size: batch_size x output_size
   """
-  def __init__(self, margin=1.0, squared=True):
-    super(HingeLoss, self).__init__()
-    self.margin = margin
-    self.squared = squared
 
-  def forward(self, f, y, C_pos=1.0, C_neg=1.0):
-    # convert y into {-1,1}
-    y_new = 2.*y - 1.0
-    tmp = y_new * f
+    def __init__(self, margin=1.0, squared=True):
+        super(HingeLoss, self).__init__()
+        self.margin = margin
+        self.squared = squared
 
-    # Hinge loss
-    loss = F.relu(self.margin - tmp)
-    if self.squared:
-      loss = loss**2
-    loss = loss * (C_pos * y + C_neg * (1. - y))
-    return loss.mean()
-    # ELU loss
-    #loss = F.relu(self.margin - tmp)
-    #tmp_2 = torch.exp(-tmp + self.margin) - 1.
-    #tmp_2[tmp_2 > 0] = 0.0
-    #loss += tmp_2
-    #return loss.mean()
-    # BCE loss
-    #loss = F.binary_cross_entropy_with_logits(f, y)
-    #return loss.mean()
+    def forward(self, f, y, C_pos=1.0, C_neg=1.0):
+        # convert y into {-1,1}
+        y_new = 2.0 * y - 1.0
+        tmp = y_new * f
+
+        # Hinge loss
+        loss = F.relu(self.margin - tmp)
+        if self.squared:
+            loss = loss ** 2
+        loss = loss * (C_pos * y + C_neg * (1.0 - y))
+        return loss.mean()
+        # ELU loss
+        # loss = F.relu(self.margin - tmp)
+        # tmp_2 = torch.exp(-tmp + self.margin) - 1.
+        # tmp_2[tmp_2 > 0] = 0.0
+        # loss += tmp_2
+        # return loss.mean()
+        # BCE loss
+        # loss = F.binary_cross_entropy_with_logits(f, y)
+        # return loss.mean()
+
 
 @add_start_docstrings(
-  """Bert Model transformer with a sequence classification  head on top (a linear layer on top of
+    """Bert Model transformer with a sequence classification  head on top (a linear layer on top of
     the pooled output) e.g. for eXtreme Multi-label Classification (XMLC). """,
-  BERT_START_DOCSTRING,
-  BERT_INPUTS_DOCSTRING,
+    BERT_START_DOCSTRING,
+    BERT_INPUTS_DOCSTRING,
 )
 class BertForXMLC(BertPreTrainedModel):
-  r"""
+    r"""
         **labels**: (`optional`) ``torch.LongTensor`` of shape ``(batch_size,)``:
             Labels for computing the sequence classification/regression loss.
             Indices should be in ``[0, ..., config.num_labels - 1]``.
@@ -93,61 +109,62 @@ class BertForXMLC(BertPreTrainedModel):
         loss, logits = outputs[:2]
   """
 
-  def __init__(self, config):
-    super(BertForXMLC, self).__init__(config)
-    self.num_labels = config.num_labels
+    def __init__(self, config):
+        super(BertForXMLC, self).__init__(config)
+        self.num_labels = config.num_labels
 
-    self.bert = BertModel(config)
-    self.dropout = nn.Dropout(config.hidden_dropout_prob)
-    self.classifier = nn.Linear(config.hidden_size, self.config.num_labels)
-    self.loss_fct = HingeLoss(margin=1.0, squared=True)
+        self.bert = BertModel(config)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.classifier = nn.Linear(config.hidden_size, self.config.num_labels)
+        self.loss_fct = HingeLoss(margin=1.0, squared=True)
 
-    self.init_weights()
+        self.init_weights()
 
-  def forward(
-    self,
-    input_ids=None,
-    attention_mask=None,
-    token_type_ids=None,
-    position_ids=None,
-    head_mask=None,
-    inputs_embeds=None,
-    output_ids=None,
-    output_mask=None,
-  ):
-    outputs = self.bert(
-      input_ids,
-      attention_mask=attention_mask,
-      token_type_ids=token_type_ids,
-      position_ids=position_ids,
-      head_mask=head_mask,
-      inputs_embeds=inputs_embeds,
-    )
-    # get [cls] hidden states
-    pooled_output = outputs[1]
+    def forward(
+        self,
+        input_ids=None,
+        attention_mask=None,
+        token_type_ids=None,
+        position_ids=None,
+        head_mask=None,
+        inputs_embeds=None,
+        output_ids=None,
+        output_mask=None,
+    ):
+        outputs = self.bert(
+            input_ids,
+            attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
+            position_ids=position_ids,
+            head_mask=head_mask,
+            inputs_embeds=inputs_embeds,
+        )
+        # get [cls] hidden states
+        pooled_output = outputs[1]
 
-    pooled_output = self.dropout(pooled_output)
-    logits = self.classifier(pooled_output)
+        pooled_output = self.dropout(pooled_output)
+        logits = self.classifier(pooled_output)
 
-    outputs = (logits,) + outputs[2:]  # add hidden states and attention if they are here
+        outputs = (logits,) + outputs[
+            2:
+        ]  # add hidden states and attention if they are here
 
-    if output_ids is not None and output_mask is not None:
-      labels = repack_output(output_ids, output_mask, self.num_labels)
-      loss = self.loss_fct(logits, labels)
-      outputs = (loss,) + outputs
+        if output_ids is not None and output_mask is not None:
+            labels = repack_output(output_ids, output_mask, self.num_labels)
+            loss = self.loss_fct(logits, labels)
+            outputs = (loss,) + outputs
 
-    return outputs  # (loss), logits, (hidden_states), (attentions)
-
+        return outputs  # (loss), logits, (hidden_states), (attentions)
 
 
 @add_start_docstrings(
-  """RoBERTa Model transformer with a sequence classification head on top (a linear layer
+    """RoBERTa Model transformer with a sequence classification head on top (a linear layer
   on top of the pooled output) e.g. for eXtreme Multi-label Classification (XMLC). """,
-  ROBERTA_START_DOCSTRING,
-  ROBERTA_INPUTS_DOCSTRING,
+    ROBERTA_START_DOCSTRING,
+    ROBERTA_INPUTS_DOCSTRING,
 )
 class RobertaForXMLC(BertPreTrainedModel):
-  r"""
+    r"""
         **labels**: (`optional`) ``torch.LongTensor`` of shape ``(batch_size,)``:
             Labels for computing the sequence classification/regression loss.
             Indices should be in ``[0, ..., config.num_labels]``.
@@ -173,58 +190,60 @@ class RobertaForXMLC(BertPreTrainedModel):
         outputs = model(input_ids, labels=labels)
         loss, logits = outputs[:2]
   """
-  config_class = RobertaConfig
-  pretrained_model_archive_map = ROBERTA_PRETRAINED_MODEL_ARCHIVE_MAP
-  base_model_prefix = "roberta"
+    config_class = RobertaConfig
+    pretrained_model_archive_map = ROBERTA_PRETRAINED_MODEL_ARCHIVE_MAP
+    base_model_prefix = "roberta"
 
-  def __init__(self, config):
-    super(RobertaForXMLC, self).__init__(config)
-    self.num_labels = config.num_labels
+    def __init__(self, config):
+        super(RobertaForXMLC, self).__init__(config)
+        self.num_labels = config.num_labels
 
-    self.roberta = RobertaModel(config)
-    self.classifier = RobertaClassificationHead(config)
-    self.loss_fct = HingeLoss(margin=1.0, squared=True)
+        self.roberta = RobertaModel(config)
+        self.classifier = RobertaClassificationHead(config)
+        self.loss_fct = HingeLoss(margin=1.0, squared=True)
 
-  def forward(
-    self,
-    input_ids=None,
-    attention_mask=None,
-    token_type_ids=None,
-    position_ids=None,
-    head_mask=None,
-    inputs_embeds=None,
-    output_ids=None,
-    output_mask=None,
-  ):
-    outputs = self.roberta(
-      input_ids,
-      attention_mask=attention_mask,
-      token_type_ids=token_type_ids,
-      position_ids=position_ids,
-      head_mask=head_mask,
-      inputs_embeds=inputs_embeds,
-    )
-    sequence_output = outputs[0]
-    logits = self.classifier(sequence_output)
+    def forward(
+        self,
+        input_ids=None,
+        attention_mask=None,
+        token_type_ids=None,
+        position_ids=None,
+        head_mask=None,
+        inputs_embeds=None,
+        output_ids=None,
+        output_mask=None,
+    ):
+        outputs = self.roberta(
+            input_ids,
+            attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
+            position_ids=position_ids,
+            head_mask=head_mask,
+            inputs_embeds=inputs_embeds,
+        )
+        sequence_output = outputs[0]
+        logits = self.classifier(sequence_output)
 
-    outputs = (logits,) + outputs[2:]  # add hidden states and attention if they are here
+        outputs = (logits,) + outputs[
+            2:
+        ]  # add hidden states and attention if they are here
 
-    if output_ids is not None and output_mask is not None:
-      labels = repack_output(output_ids, output_mask, self.num_labels)
-      loss = self.loss_fct(logits, labels)
-      outputs = (loss,) + outputs
+        if output_ids is not None and output_mask is not None:
+            labels = repack_output(output_ids, output_mask, self.num_labels)
+            loss = self.loss_fct(logits, labels)
+            outputs = (loss,) + outputs
 
-    return outputs  # (loss), logits, (hidden_states), (attentions)
+        return outputs  # (loss), logits, (hidden_states), (attentions)
 
 
 @add_start_docstrings(
-  """XLNet Model with a sequence classification head on top (a linear layer on top of
+    """XLNet Model with a sequence classification head on top (a linear layer on top of
   the pooled output) for eXtreme Multi-label Classification (XMLC)""",
-  XLNET_START_DOCSTRING,
-  XLNET_INPUTS_DOCSTRING,
+    XLNET_START_DOCSTRING,
+    XLNET_INPUTS_DOCSTRING,
 )
 class XLNetForXMLC(XLNetPreTrainedModel):
-  r"""
+    r"""
         **labels**: (`optional`) ``torch.LongTensor`` of shape ``(batch_size,)``:
             Labels for computing the sequence classification/regression loss.
             Indices should be in ``[0, ..., config.num_labels - 1]``.
@@ -257,53 +276,54 @@ class XLNetForXMLC(XLNetPreTrainedModel):
         loss, logits = outputs[:2]
   """
 
-  def __init__(self, config):
-    super(XLNetForXMLC, self).__init__(config)
-    self.num_labels = config.num_labels
+    def __init__(self, config):
+        super(XLNetForXMLC, self).__init__(config)
+        self.num_labels = config.num_labels
 
-    self.transformer = XLNetModel(config)
-    self.sequence_summary = SequenceSummary(config)
-    self.logits_proj = nn.Linear(config.d_model, config.num_labels)
-    self.loss_fct = HingeLoss(margin=1.0, squared=True)
+        self.transformer = XLNetModel(config)
+        self.sequence_summary = SequenceSummary(config)
+        self.logits_proj = nn.Linear(config.d_model, config.num_labels)
+        self.loss_fct = HingeLoss(margin=1.0, squared=True)
 
-    self.init_weights()
+        self.init_weights()
 
-  def forward(
-    self,
-    input_ids=None,
-    attention_mask=None,
-    mems=None,
-    perm_mask=None,
-    target_mapping=None,
-    token_type_ids=None,
-    input_mask=None,
-    head_mask=None,
-    inputs_embeds=None,
-    output_ids=None,
-    output_mask=None,
-  ):
-    transformer_outputs = self.transformer(
-      input_ids,
-      attention_mask=attention_mask,
-      mems=mems,
-      perm_mask=perm_mask,
-      target_mapping=target_mapping,
-      token_type_ids=token_type_ids,
-      input_mask=input_mask,
-      head_mask=head_mask,
-      inputs_embeds=inputs_embeds,
-    )
-    output = transformer_outputs[0]
+    def forward(
+        self,
+        input_ids=None,
+        attention_mask=None,
+        mems=None,
+        perm_mask=None,
+        target_mapping=None,
+        token_type_ids=None,
+        input_mask=None,
+        head_mask=None,
+        inputs_embeds=None,
+        output_ids=None,
+        output_mask=None,
+    ):
+        transformer_outputs = self.transformer(
+            input_ids,
+            attention_mask=attention_mask,
+            mems=mems,
+            perm_mask=perm_mask,
+            target_mapping=target_mapping,
+            token_type_ids=token_type_ids,
+            input_mask=input_mask,
+            head_mask=head_mask,
+            inputs_embeds=inputs_embeds,
+        )
+        output = transformer_outputs[0]
 
-    output = self.sequence_summary(output)
-    logits = self.logits_proj(output)
+        output = self.sequence_summary(output)
+        logits = self.logits_proj(output)
 
-    outputs = (logits,) + transformer_outputs[1:]  # Keep mems, hidden states, attentions if there are in it
+        outputs = (logits,) + transformer_outputs[
+            1:
+        ]  # Keep mems, hidden states, attentions if there are in it
 
-    if output_ids is not None and output_mask is not None:
-      labels = repack_output(output_ids, output_mask, self.num_labels)
-      loss = self.loss_fct(logits, labels)
-      outputs = (loss,) + outputs
+        if output_ids is not None and output_mask is not None:
+            labels = repack_output(output_ids, output_mask, self.num_labels)
+            loss = self.loss_fct(logits, labels)
+            outputs = (loss,) + outputs
 
-    return outputs  # return (loss), logits, (mems), (hidden states), (attentions)
-
+        return outputs  # return (loss), logits, (mems), (hidden states), (attentions)

@@ -384,13 +384,18 @@ struct Tree {
 
 
 struct SVMParameter {
-    SVMParameter(int solver_type=L2R_L1LOSS_SVC_DUAL, double Cp=1.0, double Cn=1.0, int max_iter=1000, double eps=0.1):
-        solver_type(solver_type), max_iter(max_iter),
-        Cp(Cp), Cn(Cn), eps(eps) { }
+    SVMParameter(
+        int solver_type=L2R_L1LOSS_SVC_DUAL,
+        double Cp=1.0,
+        double Cn=1.0,
+        int max_iter=1000,
+        double eps=0.1,
+        double bias=1.0
+    ): solver_type(solver_type), max_iter(max_iter), Cp(Cp), Cn(Cn), eps(eps), bias(bias) {}
 
     int solver_type;
     size_t max_iter;
-    double Cp, Cn, eps;
+    double Cp, Cn, eps, bias;
 };
 
 #define INF HUGE_VAL
@@ -402,9 +407,11 @@ struct SVMWorker {
     ivec_t w_index; // used to determine the subset of active index.
     dvec_t y;
     dvec_t w;
+    ValueType bb; // bias parameter
     dvec_t QD;
     dvec_t alpha;
     dvec_t xj_sq;
+    svec_t bias_column_vec;
     double upper_bound[3];
     double diag[3];
     size_t w_size, y_size;
@@ -436,8 +443,9 @@ struct SVMWorker {
             alpha.resize(2 * y_size, 0);
             QD.resize(y_size, 0);
         } else if(param.solver_type == L1R_L2LOSS_SVC) {
-            xj_sq.resize(w_size, 0);
+            xj_sq.resize(w_size + 1, 0);
             alpha.resize(y_size); // used as b in l1r_l2loss_svc
+            bias_column_vec.resize(y_size, y_size);
         }
     }
 
@@ -502,6 +510,7 @@ struct SVMWorker {
     }
 
     dvec_t& solve(const gmat_wrapper_t& feat_mat, int seed=0) {
+        // the solution will be available in w and bb
         if(feat_mat.is_sparse()) {
             solve(feat_mat.get_sparse(), seed);
         } else  {
@@ -527,6 +536,23 @@ struct SVMWorker {
         return w;
     }
 
+    template<typename T1, typename T2>
+    void do_axpy_with_bias(ValueType a, const T1& x, const ValueType& x_bias, T2& y, ValueType& y_bias, const SVMParameter& param) {
+        do_axpy(a, x, y);
+        if(param.bias > 0) {
+            y_bias += a * x_bias;
+        }
+    }
+
+    template<typename T1, typename T2>
+    ValueType do_dot_product_with_bias(const T1& x, const ValueType& x_bias, const T2& y, const ValueType& y_bias, const SVMParameter& param) {
+        ValueType ret = do_dot_product(x, y);
+        if(param.bias > 0) {
+            ret += x_bias * y_bias;
+        }
+        return ret;
+    }
+
     template<typename MAT>
     void solve_l2r_l1l2_svc(const MAT& X, int seed) {
 
@@ -535,6 +561,7 @@ struct SVMWorker {
         for(size_t j = 0; j < w_size; j++) {
             w[j] = 0;
         }
+        bb = 0;
 
         if(param.solver_type == L2R_L2LOSS_SVC_DUAL) {
             diag[0] = 0.5 / param.Cn;
@@ -554,9 +581,9 @@ struct SVMWorker {
             QD[i] = diag[GETI(i)];
 
             const svec_t& xi = X.get_row(i);
-            QD[i] += do_dot_product(xi, xi);
-            do_axpy(y[i] * alpha[i], xi, w);
-
+            QD[i] += do_dot_product_with_bias(xi, param.bias, xi, param.bias, param);
+            double coef = y[i] * alpha[i];
+            do_axpy_with_bias(coef, xi, param.bias, w, bb, param);
         }
 
         // PG: projected gradient, for shrinking and stopping
@@ -579,7 +606,8 @@ struct SVMWorker {
                 const signed char yi = y[i];
                 const svec_t& xi = X.get_row(i);
 
-                double G = yi * do_dot_product(w, xi) - 1;
+               // double G = yi * (do_dot_product(w, xi) + (param.bias > 0 ? bb * param.bias : 0.0))- 1;
+                double G = yi * do_dot_product_with_bias(w, bb, xi, param.bias, param) - 1.0;
                 double C = upper_bound[GETI(i)];
                 G += alpha[i] * diag[GETI(i)];
 
@@ -613,7 +641,7 @@ struct SVMWorker {
                     double alpha_old = alpha[i];
                     alpha[i] = static_cast<ValueType>(std::min(std::max(alpha[i] - G / QD[i], 0.0), C));
                     double d = (alpha[i] - alpha_old) * yi;
-                    do_axpy(d, xi, w);
+                    do_axpy_with_bias(d, xi, param.bias, w, bb, param);
                 }
             }
 
@@ -654,6 +682,7 @@ struct SVMWorker {
         for(size_t j = 0; j < w_size; j++) {
             w[j] = 0;
         }
+        bb = 0;
 
         // Initial alpha can be set here. Note that
         // 0 < alpha[i] < upper_bound[GETI(i)]
@@ -663,8 +692,9 @@ struct SVMWorker {
             alpha[2 * i + 1] = upper_bound[GETI(i)] - alpha[2 * i];
 
             const svec_t& xi = X.get_row(i);
-            xTx[i] += do_dot_product(xi, xi);
-            do_axpy(y[i] * alpha[2 * i], xi, w);
+            xTx[i] += do_dot_product_with_bias(xi, param.bias, xi, param.bias, param);
+            double coef = y[i] * alpha[2 * i];
+            do_axpy_with_bias(coef, xi, param.bias, w, bb, param);
         }
 
         size_t iter = 0;
@@ -680,7 +710,7 @@ struct SVMWorker {
 
                 double C = upper_bound[GETI(i)];
                 double xisq = xTx[i];
-                double ywTx = yi * do_dot_product(w, xi);
+                double ywTx = yi * do_dot_product_with_bias(w, bb, xi, param.bias, param);
                 double a = xisq, b = ywTx;
 
                 // Decide to minimize g_1(z) or g_2(z)
@@ -721,7 +751,8 @@ struct SVMWorker {
                 if(inner_iter > 0) { // update w
                     alpha[ind1] = z;
                     alpha[ind2] = C - z;
-                    do_axpy(sign * (z - alpha_old) * yi, xi, w);
+                    double coef = sign * (z - alpha_old) * yi;
+                    do_axpy_with_bias(coef, xi, param.bias, w, bb, param);
                 }
             }
 
@@ -757,9 +788,22 @@ struct SVMWorker {
             xj_sq[j] = 0;
         }
 
+        if(param.bias > 0) {
+            bb = 0;
+            w_index.push_back(w_size);
+            xj_sq[w_size] = 0;
+            bias_column_vec.nnz = index.size();
+            for(size_t idx = 0; idx < index.size(); idx++) {
+                bias_column_vec.idx[idx] = index[idx];
+                bias_column_vec.val[idx] = param.bias;
+                xj_sq[w_size] += C[GETI(index[idx])] * param.bias * param.bias;
+            }
+            std::sort(bias_column_vec.idx, bias_column_vec.idx + index.size());
+        }
+
         for(auto& i : index) {
             const svec_t& xi = X.get_row(i);
-            b[i] = 1.0 - y[i] * do_dot_product(xi, w);
+            b[i] = 1.0 - y[i] * do_dot_product_with_bias(xi, param.bias, w, bb, param);
             for(size_t t = 0; t < xi.nnz; t++) {
                 xj_sq[xi.idx[t]] += C[GETI(i)] * xi.val[t] * xi.val[t];
             }
@@ -780,7 +824,8 @@ struct SVMWorker {
             size_t s = 0;
             for(s = 0; s < active_size; s++) {
                 size_t j = w_index[s];
-                const svec_t& xj = X.get_col(j);
+                const svec_t& xj = (j == w_size)? bias_column_vec : X.get_col(j);
+                ValueType& wj = (j == w_size)? bb : w[j];
 
                 double G_loss = 0; // gradient of loss term
                 double H = 0;      // hessian
@@ -802,7 +847,7 @@ struct SVMWorker {
                 double Gp = G_loss + 1;
                 double Gn = G_loss - 1;
                 double violation = 0;
-                if(w[j] == 0) {
+                if(wj == 0) {
                     if(Gp < 0) {
                         violation = -Gp;
                     } else if(Gn > 0) {
@@ -813,9 +858,9 @@ struct SVMWorker {
                         s--;
                         continue;
                     }
-                } else if(w[j] > 0) {
+                } else if(wj > 0) {
                     violation = fabs(Gp);
-                } else { // w[j] < 0
+                } else { // wj < 0
                     violation = fabs(Gn);
                 }
 
@@ -824,24 +869,24 @@ struct SVMWorker {
 
                 // obtain Newton direction d
                 double d = 0;
-                if(Gp < (H * w[j])) {
+                if(Gp < (H * wj)) {
                     d = -Gp / H;
-                } else if(Gn > (H * w[j])) {
+                } else if(Gn > (H * wj)) {
                     d = -Gn / H;
                 } else {
-                    d = -w[j];
+                    d = -wj;
                 }
                 if(fabs(d) < 1e-12) {
                     continue;
                 }
 
-                double delta = fabs(w[j] + d) - fabs(w[j]) + G_loss * d;
+                double delta = fabs(wj + d) - fabs(wj) + G_loss * d;
                 double d_old = 0;
                 double loss_old = 0, loss_new = 0;
                 size_t num_linesearch = 0;
                 for(num_linesearch = 0; num_linesearch < max_num_linesearch; num_linesearch++) {
                     double d_diff = d_old - d;
-                    double cond = fabs(w[j] + d) - fabs(w[j]) - sigma * delta;
+                    double cond = fabs(wj + d) - fabs(wj) - sigma * delta;
                     double appxcond = xj_sq[j] * d * d + G_loss * d + cond;
                     if(appxcond <= 0) {
                         //do_axpy(d_diff, xj, b);
@@ -878,13 +923,13 @@ struct SVMWorker {
                     }
                 }
 
-                w[j] += d;
+                wj += d;
 
                 // recompute b[] if line search takes too many steps
                 if(num_linesearch >= max_num_linesearch) {
                     for(auto& i : index) {
                         const svec_t& xi = X.get_row(i);
-                        b[i] = 1.0 - y[i] * do_dot_product(xi, w);
+                        b[i] = 1.0 - y[i] * do_dot_product_with_bias(xi, param.bias, w, bb, param);
                     }
                 }
             }
@@ -1001,6 +1046,9 @@ struct SVMJob {
         for(size_t i = 0; i < worker.w_size; i++) {
             coo_model.push_back(i, subcode, worker.w[i], threshold);
         }
+        if(param_ptr->bias > 0) {
+            coo_model.push_back(worker.w_size, subcode, worker.bb, threshold);
+        }
     }
 
     void solve(SVMWorker& worker, dmat_t& W, double threshold=0.0) const {
@@ -1010,10 +1058,14 @@ struct SVMJob {
                 W.at(i, subcode) = worker.w[i];
             }
         }
+        if(param_ptr->bias > 0 && fabs(worker.bb) >= threshold) {
+            W.at(w_size, subcode) = worker.bb;
+        }
     }
 
     void reset_worker(SVMWorker& worker) const {
         worker.index.clear();
+        worker.bias_column_vec.nnz = 0;
         if(Z != NULL) {
             const svec_t& z_c = Z->get_col(code);
             for(size_t idx = 0; idx < z_c.nnz; idx++) {
@@ -1037,7 +1089,7 @@ void multilabel_train_with_codes(const gmat_wrapper_t *feat_mat, const smat_t *Y
 #pragma omp parallel for schedule(static,1)
     for(int tid = 0; tid < threads; tid++) {
         worker_set[tid].init(w_size, y_size, param);
-        model_set[tid].reshape(w_size, nr_labels);
+        model_set[tid].reshape(w_size + (param->bias > 0), nr_labels);
     }
 
     std::vector<SVMJob> job_queue;
@@ -1057,7 +1109,6 @@ void multilabel_train_with_codes(const gmat_wrapper_t *feat_mat, const smat_t *Y
             job_queue.push_back(SVMJob(feat_mat, Y, NULL, NULL, 0, subcode, param));
         }
     }
-    model->reshape(w_size, nr_labels);
 #pragma omp parallel for schedule(dynamic,1)
     for(size_t job_id = 0; job_id < job_queue.size(); job_id++) {
         int tid = omp_get_thread_num();
@@ -1222,6 +1273,7 @@ void c_multilabel_train_with_codes(
         double Cn,
         size_t max_iter,
         double eps,
+        double bias,
         int threads) {
 
     if(threads == -1) {
@@ -1232,7 +1284,7 @@ void c_multilabel_train_with_codes(
 
     const gmat_wrapper_t feat_mat(pX);
     const gmat_wrapper_t Y(pY);
-    SVMParameter param(solver_type, Cp, Cn, max_iter, eps);
+    SVMParameter param(solver_type, Cp, Cn, max_iter, eps, bias);
     coo_t model;
     if(pC != NULL && pZ != NULL) {
         const gmat_wrapper_t C(pC);
@@ -1245,7 +1297,8 @@ void c_multilabel_train_with_codes(
             &model,
             threshold,
             &param,
-            threads);
+            threads
+        );
     } else {
         multilabel_train_with_codes(
             &feat_mat,
@@ -1255,7 +1308,8 @@ void c_multilabel_train_with_codes(
             &model,
             threshold,
             &param,
-            threads);
+            threads
+        );
     }
     model.create_pycoo(coo_alloc);
 }

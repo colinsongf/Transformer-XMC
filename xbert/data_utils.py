@@ -12,7 +12,6 @@ from sklearn.datasets import load_svmlight_file
 import scipy.sparse as sp
 
 
-
 class InputExample(object):
     """A single training/test example for simple sequence classification."""
 
@@ -33,7 +32,9 @@ class InputExample(object):
 class InputFeatures(object):
     """A single set of features of data."""
 
-    def __init__(self, input_ids, attention_mask, token_type_ids, output_ids, output_mask):
+    def __init__(
+        self, input_ids, attention_mask, token_type_ids, output_ids, output_mask
+    ):
         self.input_ids = input_ids
         self.attention_mask = attention_mask
         self.token_type_ids = token_type_ids
@@ -47,13 +48,14 @@ class InputFeatures(object):
 def indice_to_onehot(Y_pad_seq, TRG_vocab, NUM_LABEL=None, device=None):
     batch_size, max_len = Y_pad_seq.size()
     tmp = torch.unsqueeze(Y_pad_seq, 2)
-    Y_one_hot = torch.zeros((batch_size, max_len, NUM_LABEL),
-                            dtype=torch.float32, device=device)
+    Y_one_hot = torch.zeros(
+        (batch_size, max_len, NUM_LABEL), dtype=torch.float32, device=device
+    )
     Y_one_hot.scatter_(2, tmp, 1)
     Y_one_hot = Y_one_hot.sum(dim=1)
 
     # masking out <pad>
-    Y_one_hot[:,TRG_vocab.stoi['<pad>']] = 0.0
+    Y_one_hot[:, TRG_vocab.stoi["<pad>"]] = 0.0
     return Y_one_hot
 
 
@@ -69,7 +71,7 @@ def Ylist_to_Ysparse(Y_list, L=None):
 
     NUM_DATA = max(rows) + 1
     NUM_LABEL = max(cols) + 1 if L is None else L
-    Y_csr_mat = sp.csr_matrix( (vals, (rows, cols)), shape=(NUM_DATA, NUM_LABEL) )
+    Y_csr_mat = sp.csr_matrix((vals, (rows, cols)), shape=(NUM_DATA, NUM_LABEL))
     return Y_csr_mat
 
 
@@ -77,12 +79,14 @@ def Ylist_to_Ysparse(Y_list, L=None):
 # L: number of labels
 # D: number of data dimension
 def load_mlc_svmfile(file_path, L=None, D=None):
-    assert(os.path.exists(file_path))
+    assert os.path.exists(file_path)
 
     if D is None:
         X, Y_list = load_svmlight_file(file_path, multilabel=True, zero_based=False)
     else:
-        X, Y_list = load_svmlight_file(file_path, n_features=D, multilabel=True, zero_based=False)
+        X, Y_list = load_svmlight_file(
+            file_path, n_features=D, multilabel=True, zero_based=False
+        )
 
     # create label sparse matrix
     Y = Ylist_to_Ysparse(Y_list, L=L)
@@ -92,19 +96,19 @@ def load_mlc_svmfile(file_path, L=None, D=None):
 def create_exp_dir(path, scripts_to_save=None, options=None):
     if not os.path.exists(path):
         os.mkdir(path)
-    #else:
+    # else:
     #    shutil.rmtree(path)
     #    os.mkdir(path)
 
-    print('Experiment dir : {}'.format(path))
+    print("Experiment dir : {}".format(path))
     if scripts_to_save is not None:
-        if not os.path.exists(os.path.join(path, 'scripts')):
-            os.mkdir(os.path.join(path, 'scripts'))
+        if not os.path.exists(os.path.join(path, "scripts")):
+            os.mkdir(os.path.join(path, "scripts"))
         for script in scripts_to_save:
-            dst_file = os.path.join(path, 'scripts', os.path.basename(script))
+            dst_file = os.path.join(path, "scripts", os.path.basename(script))
             shutil.copyfile(script, dst_file)
 
     # dump the args
     if options is not None:
-        with open(os.path.join(path, 'options.json'), 'w') as f:
+        with open(os.path.join(path, "options.json"), "w") as f:
             json.dump(vars(options), f)
