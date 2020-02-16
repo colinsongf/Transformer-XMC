@@ -91,19 +91,22 @@ struct Tree {
     size_t depth;     // # leaf nodes = 2^depth
     std::vector<Node> nodes;
 
-    rng_t rng;
 
     // used for balanced 2-means
     ivec_t elements;
-    dvec_t center; // need to be duplicated to handle parallel clustering
+    ivec_t previous_elements;
+    dvec_t center1; // need to be duplicated to handle parallel clustering
     dvec_t center2;// for spherical kmeans
     dvec_t scores; // need to be duplicated to handle parallel clustering
+    std::vector<unsigned> seed_for_nodes; // random seeds used for each node
+
 
     Tree(size_t depth=0) { this->reset_depth(depth); }
 
     void reset_depth(size_t depth) {
         this->depth = depth;
         nodes.resize(1 << (depth + 1));
+        seed_for_nodes.resize(nodes.size());
     }
 
     struct comparator_by_value_t { // {{{
@@ -113,9 +116,9 @@ struct Tree {
             pred_val(val), increasing(increasing) {}
         bool operator()(const size_t i, const size_t j) const {
             if(increasing) {
-                return (pred_val[i] < pred_val[j]);
+                return (pred_val[i] < pred_val[j]) || (pred_val[i] == pred_val[j] && i < j);
             } else {
-                return (pred_val[i] > pred_val[j]);
+                return (pred_val[i] > pred_val[j]) || (pred_val[i] == pred_val[j] && i < j);
             }
         }
     }; // }}}
@@ -131,10 +134,17 @@ struct Tree {
         right.set(middle, root.end);
     }
 
-    void sort_elements_by_scores_on_node(const Node& root, bool increasing=true) {
+    // return true if this sorting changes the assignment, false otherwise.
+    bool sort_elements_by_scores_on_node(const Node& root, bool increasing=true) {
+        auto prev_start_it = previous_elements.begin() + root.start;
         auto start_it = elements.begin() + root.start;
+        auto middle_it = elements.begin() + ((root.start + root.end) >> 1);
         auto end_it = elements.begin() + root.end;
+        std::copy(start_it, middle_it, prev_start_it);
         std::sort(start_it, end_it, comparator_by_value_t(scores.data(), increasing));
+        std::sort(start_it, middle_it);
+        std::sort(middle_it, end_it);
+        return !std::equal(start_it, middle_it, prev_start_it);
     }
 
     // X = [x_1, ..., x_L]^T
@@ -152,11 +162,13 @@ struct Tree {
         Node& left = left_of(nid);
         Node& right = right_of(nid);
         partition_elements(root, left, right);
+        rng_t rng(seed_for_nodes[nid]);
 
+        auto& cur_center  = center1;
         // perform the clustering and sorting
         for(size_t iter = 0; iter < max_iter; iter++) {
             // construct center (for right child)
-            memset(center.buf, 0, sizeof(ValueType) * center.len);
+            memset(cur_center.buf, 0, sizeof(ValueType) * cur_center.len);
             if(iter == 0) {
                 auto right_idx = rng.randint(0, root.size() - 1);
                 auto left_idx = (right_idx + rng.randint(1, root.size() - 1)) % root.size();
@@ -165,8 +177,8 @@ struct Tree {
 
                 const auto& feat_right = feat_mat.get_row(elements[right_idx]);
                 const auto& feat_left = feat_mat.get_row(elements[left_idx]);
-                do_axpy(1.0, feat_right, center);
-                do_axpy(-1.0, feat_left, center);
+                do_axpy(1.0, feat_right, cur_center);
+                do_axpy(-1.0, feat_left, cur_center);
 
             } else {
                 ValueType alpha = 0;
@@ -174,19 +186,19 @@ struct Tree {
                 for(size_t i = right.start; i < right.end; i++) {
                     size_t eid = elements[i];
                     const auto& feat = feat_mat.get_row(eid);
-                    do_axpy(alpha, feat, center);
+                    do_axpy(alpha, feat, cur_center);
                 }
 
                 alpha = -1.0 / left.size();
                 for(size_t i = left.start; i < left.end; i++) {
                     size_t eid = elements[i];
                     const auto& feat = feat_mat.get_row(eid);
-                    do_axpy(alpha, feat, center);
+                    do_axpy(alpha, feat, cur_center);
                 }
             }
             ivec_t *elements_ptr = &elements;
             dvec_t *scores_ptr = &scores;
-            dvec_t *center_ptr = &center;
+            dvec_t *center_ptr = &cur_center;
             const MAT* feat_mat_ptr = &feat_mat;
             // construct scores
 #pragma omp parallel for shared(elements_ptr, scores_ptr, center_ptr, feat_mat_ptr)
@@ -195,7 +207,10 @@ struct Tree {
                 const svec_t& feat = feat_mat_ptr->get_row(eid);
                 scores_ptr->at(eid) = do_dot_product(*center_ptr, feat);
             }
-            sort_elements_by_scores_on_node(root);
+            bool assignment_changed = sort_elements_by_scores_on_node(root);
+            if(!assignment_changed) {
+                break;
+            }
         }
     }
 
@@ -205,13 +220,16 @@ struct Tree {
         Node& left = left_of(nid);
         Node& right = right_of(nid);
         partition_elements(root, left, right);
+        rng_t rng(seed_for_nodes[nid]);
 
+        auto& cur_center1 = center1;
+        auto& cur_center2 = center2;
         // perform the clustering and sorting
         for(size_t iter = 0; iter < max_iter; iter++) {
             ValueType one = 1.0;
             // construct center (for right child)
-            memset(center.buf, 0, sizeof(ValueType) * center.len);
-            memset(center2.buf, 0, sizeof(ValueType) * center2.len);
+            memset(cur_center1.buf, 0, sizeof(ValueType) * cur_center1.len);
+            memset(cur_center2.buf, 0, sizeof(ValueType) * cur_center2.len);
 
             if(iter == 0) {
                 auto right_idx = rng.randint(0, root.size() - 1);
@@ -221,35 +239,35 @@ struct Tree {
 
                 const auto& feat_right = feat_mat.get_row(elements[right_idx]);
                 const auto& feat_left = feat_mat.get_row(elements[left_idx]);
-                do_axpy(1.0, feat_right, center);
-                do_axpy(1.0, feat_left, center2);
-                do_axpy(-1.0, center2, center);
+                do_axpy(1.0, feat_right, cur_center1);
+                do_axpy(1.0, feat_left, cur_center2);
+                do_axpy(-1.0, cur_center2, cur_center1);
             } else {
                 for(size_t i = right.start; i < right.end; i++) {
                     size_t eid = elements[i];
                     const auto& feat = feat_mat.get_row(eid);
-                    do_axpy(one, feat, center);
+                    do_axpy(one, feat, cur_center1);
                 }
-                ValueType alpha = do_dot_product(center, center);
+                ValueType alpha = do_dot_product(cur_center1, cur_center1);
                 if(alpha > 0) {
-                    do_scale(1.0 / sqrt(alpha), center);
+                    do_scale(1.0 / sqrt(alpha), cur_center1);
                 }
 
                 for(size_t i = left.start; i < left.end; i++) {
                     size_t eid = elements[i];
                     const auto& feat = feat_mat.get_row(eid);
-                    do_axpy(one, feat, center2);
+                    do_axpy(one, feat, cur_center2);
                 }
-                alpha = do_dot_product(center2, center2);
+                alpha = do_dot_product(cur_center2, cur_center2);
                 if(alpha > 0) {
-                    do_scale(1.0 / sqrt(alpha), center2);
+                    do_scale(1.0 / sqrt(alpha), cur_center2);
                 }
 
-                do_axpy(-1.0, center2, center);
+                do_axpy(-1.0, cur_center2, cur_center1);
             }
             ivec_t *elements_ptr = &elements;
             dvec_t *scores_ptr = &scores;
-            dvec_t *center_ptr = &center;
+            dvec_t *center_ptr = &cur_center1;
             const MAT* feat_mat_ptr = &feat_mat;
             // construct scores
 #pragma omp parallel for shared(elements_ptr, scores_ptr, center_ptr, feat_mat_ptr)
@@ -258,7 +276,10 @@ struct Tree {
                 const svec_t& feat = feat_mat_ptr->get_row(eid);
                 scores_ptr->at(eid) = do_dot_product(*center_ptr, feat);
             }
-            sort_elements_by_scores_on_node(root);
+            bool assignment_changed = sort_elements_by_scores_on_node(root);
+            if(!assignment_changed) {
+                break;
+            }
         }
     }
 
@@ -319,14 +340,17 @@ struct Tree {
     void run_clustering(const MAT& feat_mat, int partition_algo, int seed=0, IND *label_codes=NULL, size_t max_iter=10) {
         size_t nr_elements = feat_mat.rows;
         elements.resize(nr_elements);
+        previous_elements.resize(nr_elements);
         // random shuffle here
         for(size_t i = 0; i < nr_elements; i++) {
             elements[i] = i;
         }
-        rng = rng_t(seed);
-        rng.shuffle(elements.begin(), elements.end());
+        rng_t rng = rng_t(seed);
+        for(size_t nid = 0; nid < nodes.size(); nid++) {
+            seed_for_nodes[nid] = rng.randint<unsigned>();
+        }
 
-        center.resize(feat_mat.cols, 0);
+        center1.resize(feat_mat.cols, 0);
         center2.resize(feat_mat.cols, 0);
         scores.resize(feat_mat.rows, 0);
         nodes[0].set(0, nr_elements);
