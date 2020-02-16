@@ -330,6 +330,64 @@ class PostProcessor(object):
     def noisyor_sigmoid(cls):
         return cls(Transform.sigmoid, Combiner.noisyor)
 
+class LabelEmbeddingFactory(object):
+
+    @staticmethod
+    def create(Y, X, method="pifa", dtype=sp.float32):
+        mapping = {
+            "pifa": LabelEmbeddingFactory.pifa,
+            "homer": LabelEmbeddingFactory.homer,
+            "spectral": LabelEmbeddingFactory.spectral,
+            "none": lambda Y, X, dtype: None,
+        }
+        if method is None:
+            method = "none"
+        if method.lower() in mapping:
+            return mapping[method.lower()](Y, X, dtype)
+        elif (method.endswith(".npz") or method.endswith(".npy")) and path.exists(method):
+            label_embedding = HierarchicalMLModel.load_feature_matrix(method, dtype=dtype)
+            assert label_embedding.shape[0] == Y.shape[1], f"{label_embedding.shape[0]} != Y.{shape[1]}"
+            return label_embedding
+        else:
+            assert False, f"Something wrong with this label embedding '{method}'. valid ones {mapping.keys()}"
+
+    @staticmethod
+    def pifa(Y, X, dtype=sp.float32):
+        Y_avg = sk_normalize(Y, axis=1, norm="l2")
+        label_embedding = smat.csr_matrix(Y_avg.T.dot(X), dtype=dtype)
+        return label_embedding
+
+    @staticmethod
+    def homer(Y, X, dtype=sp.float32):
+        label_embedding = smat.csr_matrix(Y.T, dtype=dtype)
+        return label_embedding
+
+    @staticmethod
+    def spectral(Y, X, dtype=sp.float32):
+        from sklearn.cluster import SpectralCoclustering
+        def scale_normalize(X):
+            " from https://github.com/scikit-learn/scikit-learn/blob/b194674c4/sklearn/cluster/_bicluster.py#L108"
+            row_diag = sp.asarray(sp.sqrt(X.sum(axis=1))).squeeze()
+            col_diag = sp.asarray(sp.sqrt(X.sum(axis=0))).squeeze()
+            row_diag[row_diag == 0] = 1.0;
+            col_diag[col_diag == 0] = 1.0;
+            row_diag= 1.0 / row_diag
+            col_diag= 1.0 / col_diag
+            if smat.issparse(X):
+                n_rows, n_cols = X.shape
+                r = smat.dia_matrix((row_diag, [0]), shape=(n_rows, n_rows))
+                c = smat.dia_matrix((col_diag, [0]), shape=(n_cols, n_cols))
+                an = r * X * c
+            else:
+                an = row_diag[:, sp.newaxis] * X * col_diag
+            return an, row_diag, col_diag
+
+        coclustering = SpectralCoclustering(n_clusters=16384, random_state=1)
+        normalized_data, row_diag, col_diag = scale_normalize(Y.T)
+        n_sv = 1 + int(sp.ceil(sp.log2(coclustering.n_clusters)))
+        u, v = coclustering._svd(normalized_data, n_sv, n_discard=1)
+        label_embedding = smat.csr_matrix(u, dtype=dtype)
+        return label_embedding
 
 class MLProblem(object):
     def __init__(self, X, Y, C=None, dtype=None, Z_pred=None, negative_sampling_scheme=None):

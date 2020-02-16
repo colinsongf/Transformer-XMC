@@ -6,8 +6,9 @@ from os import path
 import numpy as np
 import scipy as sp
 import scipy.sparse as smat
-from sklearn.preprocessing import normalize
-from xbert.rf_linear import MLProblem, Metrics, HierarchicalMLModel, PostProcessor
+from sklearn.preprocessing import normalize as sk_normalize
+from xbert.rf_linear import MLProblem, Metrics, HierarchicalMLModel, PostProcessor, LabelEmbeddingFactory
+from xbert.indexer import Indexer
 
 # solver_type
 solver_dict = {
@@ -114,7 +115,7 @@ def load_feature_matrix(args):
     if args.feature_format % 3 == 0:
         X1 = HierarchicalMLModel.load_feature_matrix(args.input_inst_feat1)
         X2 = HierarchicalMLModel.load_feature_matrix(args.input_inst_feat2)
-        X = smat.hstack([normalize(X1, axis=1), normalize(X2, axis=1)]).tocsr()
+        X = smat.hstack([sk_normalize(X1, axis=1), sk_normalize(X2, axis=1)]).tocsr()
     elif args.feature_format % 3 == 1 and args.input_inst_feat1:
         X = HierarchicalMLModel.load_feature_matrix(args.input_inst_feat1)
     elif args.feature_format % 3 == 2 and args.input_inst_feat2:
@@ -122,19 +123,16 @@ def load_feature_matrix(args):
     else:
         raise NotImplementedError(f"args.feature_format = {args.feature_format} is not supported.")
     if args.feature_format // 3 == 0:
-        X = normalize(X, axis=1, copy=False)
+        X = sk_normalize(X, axis=1, copy=False)
     return X
-
 
 class LinearTrainCommand(SubCommand):
     @staticmethod
     def run(args):
-        if args.input_code_path.lower() == "none":
-            C = None
-        else:
-            C = smat.load_npz(args.input_code_path)
         X = load_feature_matrix(args)
         Y = smat.load_npz(args.input_inst_label)
+        label_feat = LabelEmbeddingFactory.create(Y, X, method=args.input_label_feat, dtype=X.dtype)
+        C = Indexer.load_indexed_code(args.input_code_path, label_feat)
         if args.pred_inst_codes is not None:
             Z_pred = smat.load_npz(args.pred_inst_codes)
         else:
@@ -217,6 +215,15 @@ class LinearTrainCommand(SubCommand):
             required=True,
             metavar="PATH",
             help="path to the npz file of the indexing codes (CSR, nr_labels * nr_codes)",
+        )
+
+        parser.add_argument(
+            "-L",
+            "--input-label-feat",
+            type=str,
+            default=None,
+            metavar="PATH",
+            help="path to the npz file of the feature matrix (CSR)",
         )
 
         parser.add_argument(

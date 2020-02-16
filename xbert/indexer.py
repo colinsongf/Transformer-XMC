@@ -13,7 +13,6 @@ from ctypes import *
 
 from xbert.rf_util import PyMatrix, fillprototype, load_dynamic_library
 
-
 class RandomProject(object):
 
     """Encode and decode a label into a K-way D-dimensional code.
@@ -192,13 +191,55 @@ class Indexer(object):
     def feat_mat(self):
         return self.py_feat_mat.buf
 
+    @property
+    def nr_labels(self):
+        return self.feat_mat.shape[0]
+
+    @staticmethod
+    def load_indexed_code(code_path, label_feat):
+        C = None
+        mapping = {
+            "none": Indexer.SKMEANS,
+            "skmeans": Indexer.SKMEANS,
+            "kmeans": Indexer.KMEANS,
+            "kdtree": Indexer.KDTREE,
+            "random": Indexer.PURE_RANDOM,
+            "ordinal": Indexer.BALANCED_ORDINAL,
+            "uniform": Indexer.UNIFORM,
+        }
+        if code_path is None:
+            code_path = "none"
+
+        if code_path.lower() in mapping:
+            if label_feat is not None:
+                algo = mapping[code_path.lower()]
+                if algo == Indexer.SKMEANS:
+                    label_feat = sk_normalize(label_feat, axis=1, norm="l2", copy=False)
+                indexer = Indexer(label_feat)
+                code = indexer.gen(
+                    kdim=2,
+                    depth=indexer.estimate_depth_with_cluster_size(100),
+                    algo=algo,
+                    seed=0,
+                    max_iter=20,
+                    threads=1,
+                )
+                C = code.get_csc_matrix()
+        else:
+            if code_path.endswith(".npz") and path.exists(code_path):
+                C = smat.load_npz(code_path)
+            elif path.isdir(code_path) and path.exists(path.join(code_path, "code.npz")):
+                C = smat.load_npz(path.join(code_path, "code.npz"))
+            else:
+                assert False, f"'{code_path}' does not exist. Valid ones {mapping.keys()}"
+        return C
+
     def estimate_depth_with_nr_clusters(self, nr_clusters):
-        nr_labels = self.feat_mat.rows
         depth = int(sp.log2(nr_clusters))
         return depth
 
     def estimate_depth_with_cluster_size(self, cluster_size):
-        return self.estimate_depth_with_nr_clusters(nr_labels // cluster_size + 1)
+        return self.estimate_depth_with_nr_clusters(self.nr_labels // cluster_size + 1)
 
     def ordinal_gen(self, kdim, depth, seed):
         sp.random.seed(seed)
@@ -267,6 +308,13 @@ def run_test(data_folder="./datasets/Eurlex-4K"):
     code = Indexer(L).gen(kdim=2, depth=6, algo=5, seed=5, max_iter=20, threads=1)
     code.print()
 
+def load_feature_matrix(src, dtype=sp.float32):
+    if src.endswith(".npz"):
+        return smat.load_npz(src).tocsr().astype(dtype)
+    elif src.endswith(".npy"):
+        return smat.csr_matrix(sp.ascontiguousarray(sp.load(src), dtype=dtype))
+    else:
+        raise ValueError("src must end with .npz or .npy")
 
 def main(args):
     # set hyper-parameters
@@ -284,12 +332,15 @@ def main(args):
 
     # load label feature matrix (nr_labels * nr_features)
     if path.exists(input_feat_path):
-        feat_mat = smat.load_npz(input_feat_path)
+        feat_mat = load_feature_matrix(input_feat_path)
     else:
         raise ValueError("label embedding path does not exist {}".format(input_feat_path))
 
     if not path.exists(output_code_dir):
-        os.makedirs(output_code_dir)
+        os.makedirs(output_code_dir, exist_ok=True)
+
+    if algo == Indexing.SKMEANS:
+        feat_mat = sk_normalize(feat_mat, axis=1, norm="l2", copy=False)
 
     # Indexing algorithm
     # C: nr_labels x nr_codes, stored in csr sparse matrix
@@ -314,6 +365,7 @@ if __name__ == "__main__":
     ## Required parameters
     parser.add_argument(
         "-i",
+        "-L",
         "--input-feat-path",
         type=str,
         required=True,
@@ -322,6 +374,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "-o",
+        "-c",
         "--output-code-dir",
         type=str,
         required=True,
