@@ -32,9 +32,7 @@ class InputExample(object):
 class InputFeatures(object):
     """A single set of features of data."""
 
-    def __init__(
-        self, input_ids, attention_mask, token_type_ids, output_ids, output_mask
-    ):
+    def __init__(self, input_ids, attention_mask, token_type_ids, output_ids, output_mask):
         self.input_ids = input_ids
         self.attention_mask = attention_mask
         self.token_type_ids = token_type_ids
@@ -48,9 +46,7 @@ class InputFeatures(object):
 def indice_to_onehot(Y_pad_seq, TRG_vocab, NUM_LABEL=None, device=None):
     batch_size, max_len = Y_pad_seq.size()
     tmp = torch.unsqueeze(Y_pad_seq, 2)
-    Y_one_hot = torch.zeros(
-        (batch_size, max_len, NUM_LABEL), dtype=torch.float32, device=device
-    )
+    Y_one_hot = torch.zeros((batch_size, max_len, NUM_LABEL), dtype=torch.float32, device=device)
     Y_one_hot.scatter_(2, tmp, 1)
     Y_one_hot = Y_one_hot.sum(dim=1)
 
@@ -84,9 +80,7 @@ def load_mlc_svmfile(file_path, L=None, D=None):
     if D is None:
         X, Y_list = load_svmlight_file(file_path, multilabel=True, zero_based=False)
     else:
-        X, Y_list = load_svmlight_file(
-            file_path, n_features=D, multilabel=True, zero_based=False
-        )
+        X, Y_list = load_svmlight_file(file_path, n_features=D, multilabel=True, zero_based=False)
 
     # create label sparse matrix
     Y = Ylist_to_Ysparse(Y_list, L=L)

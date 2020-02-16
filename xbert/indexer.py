@@ -93,12 +93,8 @@ class RandomProject(object):
 
 class corelib(object):
     def __init__(self, dirname, soname, forced_rebuild=False):
-        self.clib_float32 = load_dynamic_library(
-            dirname, soname + "_float32", forced_rebuild=forced_rebuild
-        )
-        self.clib_float64 = load_dynamic_library(
-            dirname, soname + "_float64", forced_rebuild=forced_rebuild
-        )
+        self.clib_float32 = load_dynamic_library(dirname, soname + "_float32", forced_rebuild=forced_rebuild)
+        self.clib_float64 = load_dynamic_library(dirname, soname + "_float64", forced_rebuild=forced_rebuild)
         arg_list = [
             POINTER(PyMatrix),
             c_uint32,
@@ -111,9 +107,7 @@ class corelib(object):
         fillprototype(self.clib_float32.get_codes, None, arg_list)
         fillprototype(self.clib_float64.get_codes, None, arg_list)
 
-    def get_codes(
-        self, py_feat_mat, depth, algo, seed, codes, verbose=0, max_iter=10, threads=-1
-    ):
+    def get_codes(self, py_feat_mat, depth, algo, seed, codes, verbose=0, max_iter=10, threads=-1):
         clib = self.clib_float32
         if py_feat_mat.dtype == sp.float64:
             clib = self.clib_float64
@@ -124,13 +118,7 @@ class corelib(object):
             if verbose != 0:
                 print("perform float32 computation")
         clib.get_codes(
-            byref(py_feat_mat),
-            depth,
-            algo,
-            seed,
-            max_iter,
-            threads,
-            codes.ctypes.data_as(POINTER(c_uint32)),
+            byref(py_feat_mat), depth, algo, seed, max_iter, threads, codes.ctypes.data_as(POINTER(c_uint32)),
         )
 
 
@@ -148,12 +136,8 @@ class SeC(object):
         self.algo = algo
         self.seed = seed
         self.codes = codes
-        self.indptr = sp.cumsum(
-            sp.bincount(codes + 1, minlength=(self.nr_codes + 1)), dtype=sp.uint64
-        )
-        self.indices = sp.argsort(
-            codes * sp.float64(self.nr_elements) + sp.arange(self.nr_elements)
-        )
+        self.indptr = sp.cumsum(sp.bincount(codes + 1, minlength=(self.nr_codes + 1)), dtype=sp.uint64)
+        self.indices = sp.argsort(codes * sp.float64(self.nr_elements) + sp.arange(self.nr_elements))
 
     @property
     def nr_elements(self):
@@ -177,8 +161,7 @@ class SeC(object):
 
     def get_csc_matrix(self):
         return smat.csc_matrix(
-            (sp.ones_like(self.indices, dtype=sp.float64), self.indices, self.indptr),
-            shape=(self.nr_elements, self.nr_codes),
+            (sp.ones_like(self.indices, dtype=sp.float64), self.indices, self.indptr), shape=(self.nr_elements, self.nr_codes),
         )
 
     def print(self):
@@ -224,9 +207,7 @@ class Indexer(object):
         m = self.feat_mat.shape[0] // kdim + [1, 0][self.feat_mat.shape[0] % kdim != 0]
         X = sp.argsort(sp.argsort(X, axis=0), axis=0) // m
         print(X)
-        codes = sp.array(
-            (X * (kdim ** sp.arange(depth)).reshape(1, -1)).sum(axis=1), dtype=sp.uint32
-        )
+        codes = sp.array((X * (kdim ** sp.arange(depth)).reshape(1, -1)).sum(axis=1), dtype=sp.uint32)
         return codes
 
     def balaced_ordinal_gen(self, kdim, depth, seed, threads=1):
@@ -236,9 +217,7 @@ class Indexer(object):
         X = PyMatrix(self.feat_mat.dot(random_matrix))
         codes = sp.zeros(X.rows, dtype=sp.uint32)
         new_depth = depth * int(sp.log2(kdim))
-        clib.get_codes(
-            X, new_depth, Indexer.KDTREE_CYCLIC, seed, codes, threads=threads
-        )
+        clib.get_codes(X, new_depth, Indexer.KDTREE_CYCLIC, seed, codes, threads=threads)
         return codes
 
     def gen(self, kdim, depth, algo, seed, max_iter=10, threads=1):
@@ -260,9 +239,7 @@ class Indexer(object):
         ]:
             feat_mat = self.py_feat_mat
             codes = sp.zeros(feat_mat.rows, dtype=sp.uint32)
-            clib.get_codes(
-                feat_mat, depth, algo, seed, codes, max_iter=max_iter, threads=threads
-            )
+            clib.get_codes(feat_mat, depth, algo, seed, codes, max_iter=max_iter, threads=threads)
         elif algo in [Indexer.ORDINAL, Indexer.UNIFORM]:
             rp_clf = RandomProject(self.feat_mat, kdim, depth, algo, seed)
             codes = rp_clf.get_codes()
@@ -309,18 +286,14 @@ def main(args):
     if path.exists(input_feat_path):
         feat_mat = smat.load_npz(input_feat_path)
     else:
-        raise ValueError(
-            "label embedding path does not exist {}".format(input_feat_path)
-        )
+        raise ValueError("label embedding path does not exist {}".format(input_feat_path))
 
     if not path.exists(output_code_dir):
         os.makedirs(output_code_dir)
 
     # Indexing algorithm
     # C: nr_labels x nr_codes, stored in csr sparse matrix
-    code = Indexer(feat_mat).gen(
-        kdim=kdim, depth=depth, algo=algo, seed=seed, max_iter=max_iter, threads=threads
-    )
+    code = Indexer(feat_mat).gen(kdim=kdim, depth=depth, algo=algo, seed=seed, max_iter=max_iter, threads=threads)
     if verbose:
         code.print()
     C = code.get_csc_matrix()
@@ -356,17 +329,10 @@ if __name__ == "__main__":
         help="path to the output npz file of indexing codes (nr_labels * nr_codes, CSR)",
     )
     parser.add_argument(
-        "-d",
-        "--depth",
-        type=int,
-        required=True,
-        default=6,
-        help="The depth of hierarchical 2-means",
+        "-d", "--depth", type=int, required=True, default=6, help="The depth of hierarchical 2-means",
     )
     # optional
-    parser.add_argument(
-        "--algo", type=int, default=5, help="0 for KMEANS 5 for SKMEANS (default 5)"
-    )
+    parser.add_argument("--algo", type=int, default=5, help="0 for KMEANS 5 for SKMEANS (default 5)")
     parser.add_argument("--seed", type=int, default=0, help="random seed (default 0)")
     parser.add_argument("--kdim", type=int, default=2)
     parser.add_argument("--threads", type=int, default=1)

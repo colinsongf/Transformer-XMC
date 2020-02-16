@@ -39,12 +39,8 @@ L2R_LR_DUAL = 7
 
 class corelib(object):
     def __init__(self, dirname, soname, forced_rebuild=False):
-        self.clib_float32 = load_dynamic_library(
-            dirname, soname + "_float32", forced_rebuild=forced_rebuild
-        )
-        self.clib_float64 = load_dynamic_library(
-            dirname, soname + "_float64", forced_rebuild=forced_rebuild
-        )
+        self.clib_float32 = load_dynamic_library(dirname, soname + "_float32", forced_rebuild=forced_rebuild)
+        self.clib_float64 = load_dynamic_library(dirname, soname + "_float64", forced_rebuild=forced_rebuild)
         arg_list = [
             POINTER(PyMatrix),  # PyMatrix X
             POINTER(PyMatrix),  # PyMatrix Y
@@ -86,9 +82,7 @@ class corelib(object):
         fillprototype(self.clib_float32.c_sparse_inner_products, None, arg_list)
         fillprototype(self.clib_float64.c_sparse_inner_products, None, arg_list)
 
-    def sparse_inner_products(
-        self, pX, pM, X_row_idx, M_col_idx, pred_values=None, threads=-1, verbose=0
-    ):
+    def sparse_inner_products(self, pX, pM, X_row_idx, M_col_idx, pred_values=None, threads=-1, verbose=0):
         clib = self.clib_float32
         if pX.dtype == sp.float64:
             clib = self.clib_float64
@@ -102,11 +96,7 @@ class corelib(object):
                 print("perform float32 computation")
 
         nnz = len(X_row_idx)
-        if (
-            pred_values is None
-            or pred_values.dtype != pM.dtype
-            or len(pred_values) != nnz
-        ):
+        if pred_values is None or pred_values.dtype != pM.dtype or len(pred_values) != nnz:
             pred_values = sp.zeros(nnz, dtype=pM.dtype)
         clib.c_sparse_inner_products(
             byref(pX),
@@ -130,9 +120,7 @@ class corelib(object):
             if verbose != 0:
                 print("perform float32 computation")
         pred_alloc = PredAllocator(dtype=pX.dtype)
-        clib.c_multilabel_predict_with_codes(
-            byref(pX), byref(pW), byref(pC), byref(pZ), pred_alloc.cfunc, threads
-        )
+        clib.c_multilabel_predict_with_codes(byref(pX), byref(pW), byref(pC), byref(pZ), pred_alloc.cfunc, threads)
         return pred_alloc.get_pred()
 
     def multilabel_train_with_codes(
@@ -203,9 +191,7 @@ class Metrics(collections.namedtuple("Metrics", ["prec", "recall"])):
     __slots__ = ()
 
     def __str__(self):
-        fmt = lambda key: " ".join(
-            "{:4.2f}".format(100 * v) for v in getattr(self, key)[:]
-        )
+        fmt = lambda key: " ".join("{:4.2f}".format(100 * v) for v in getattr(self, key)[:])
         return "\n".join("{:7}= {}".format(key, fmt(key)) for key in self._fields)
 
     @classmethod
@@ -216,9 +202,7 @@ class Metrics(collections.namedtuple("Metrics", ["prec", "recall"])):
     def generate(cls, tY, pY, topk=10):
         assert isinstance(tY, smat.csr_matrix), type(tY)
         assert isinstance(pY, smat.csr_matrix), type(pY)
-        assert tY.shape == pY.shape, "tY.shape = {}, pY.shape = {}".format(
-            tY.shape, pY.shape
-        )
+        assert tY.shape == pY.shape, "tY.shape = {}, pY.shape = {}".format(tY.shape, pY.shape)
         pY = smat_util.sorted_csr(pY)
         total_matched = sp.zeros(topk, dtype=sp.uint64)
         recall = sp.zeros(topk, dtype=sp.float64)
@@ -326,12 +310,8 @@ class PostProcessor(object):
         }
         for p in [1, 2, 3, 4, 5, 6]:
             mapping["l{}-hinge".format(p)] = cls(Transform.get_lpsvm(p), Combiner.mul)
-            mapping["log-l{}-hinge".format(p)] = cls(
-                Transform.get_log_lpsvm(p), Combiner.add
-            )
-            mapping["l{}-hinge-noisyor".format(p)] = cls(
-                Transform.get_lpsvm(p), Combiner.noisyor
-            )
+            mapping["log-l{}-hinge".format(p)] = cls(Transform.get_log_lpsvm(p), Combiner.add)
+            mapping["l{}-hinge-noisyor".format(p)] = cls(Transform.get_lpsvm(p), Combiner.noisyor)
         return mapping[name]
 
     @classmethod
@@ -352,9 +332,7 @@ class PostProcessor(object):
 
 
 class MLProblem(object):
-    def __init__(
-        self, X, Y, C=None, dtype=None, Z_pred=None, negative_sampling_scheme=None
-    ):
+    def __init__(self, X, Y, C=None, dtype=None, Z_pred=None, negative_sampling_scheme=None):
         if dtype is None:
             dtype = X.dtype
         self.pX = PyMatrix.init_from(X, dtype)
@@ -494,13 +472,7 @@ class MLModel(object):
         return cls(model, prob.pC)
 
     def predict(
-        self,
-        X,
-        only_topk=None,
-        csr_codes=None,
-        cond_prob=None,
-        normalized=False,
-        threads=-1,
+        self, X, only_topk=None, csr_codes=None, cond_prob=None, normalized=False, threads=-1,
     ):
         assert X.shape[1] == self.nr_features
         if csr_codes is None:
@@ -508,9 +480,7 @@ class MLModel(object):
             if cond_prob:
                 dense = cond_prob.transform(dense, inplace=True)
             coo = smat_util.dense_to_coo(dense)
-            pred_csr = smat_util.sorted_csr_from_coo(
-                coo.shape, coo.row, coo.col, coo.data, only_topk=only_topk
-            )
+            pred_csr = smat_util.sorted_csr_from_coo(coo.shape, coo.row, coo.col, coo.data, only_topk=only_topk)
         else:  # csr_codes is given
             assert self.C is not None, "This model does not have C"
             assert X.shape[1] == self.nr_features
@@ -519,10 +489,7 @@ class MLModel(object):
             if (csr_codes.data == 0).sum() != 0:
                 # this is a trick to avoid zero entries explicit removal from the smat_dot_smat
                 offset = sp.absolute(csr_codes.data).max() + 1
-                csr_codes = smat.csr_matrix(
-                    (csr_codes.data + offset, csr_codes.indices, csr_codes.indptr),
-                    shape=csr_codes.shape,
-                )
+                csr_codes = smat.csr_matrix((csr_codes.data + offset, csr_codes.indices, csr_codes.indptr), shape=csr_codes.shape,)
                 csr_labels = (csr_codes.dot(self.C.T)).tocsr()
                 csr_labels.data -= offset
             else:
@@ -535,22 +502,14 @@ class MLModel(object):
                 val = cond_prob.transform(val, inplace=True)
                 val = cond_prob.combiner(val, csr_labels.data)
 
-            pred_csr = smat_util.sorted_csr_from_coo(
-                csr_labels.shape, inst_idx, label_idx, val, only_topk=only_topk
-            )
+            pred_csr = smat_util.sorted_csr_from_coo(csr_labels.shape, inst_idx, label_idx, val, only_topk=only_topk)
 
         if normalized:
             pred_csr = sk_normalize(pred_csr, axis=1, copy=False, norm="l1")
         return pred_csr
 
     def predict_new(
-        self,
-        X,
-        only_topk=None,
-        csr_codes=None,
-        cond_prob=None,
-        normalized=False,
-        threads=-1,
+        self, X, only_topk=None, csr_codes=None, cond_prob=None, normalized=False, threads=-1,
     ):
         assert X.shape[1] == self.nr_features
         if csr_codes is None:
@@ -558,9 +517,7 @@ class MLModel(object):
             if cond_prob:
                 dense = cond_prob.transform(dense, inplace=True)
             coo = smat_util.dense_to_coo(dense)
-            pred_csr = smat_util.sorted_csr_from_coo(
-                coo.shape, coo.row, coo.col, coo.data, only_topk=only_topk
-            )
+            pred_csr = smat_util.sorted_csr_from_coo(coo.shape, coo.row, coo.col, coo.data, only_topk=only_topk)
         else:  # csr_codes is given
             assert self.C is not None, "This model does not have C"
             assert X.shape[1] == self.nr_features
@@ -571,20 +528,13 @@ class MLModel(object):
             if (csr_codes.data == 0).sum() != 0:
                 # this is a trick to avoid zero entries explicit removal from the smat_dot_smat
                 offset = sp.absolute(csr_codes.data).max() + 1
-                csr_codes = smat.csr_matrix(
-                    (csr_codes.data + offset, csr_codes.indices, csr_codes.indptr),
-                    shape=csr_codes.shape,
-                )
+                csr_codes = smat.csr_matrix((csr_codes.data + offset, csr_codes.indices, csr_codes.indptr), shape=csr_codes.shape,)
                 pZ = PyMatrix.init_from(csr_codes, self.dtype)
-                csr_labels, pred_csr = clib.multilabel_predict_with_codes(
-                    X, self.pW, self.pC, pZ, threads=threads
-                )
+                csr_labels, pred_csr = clib.multilabel_predict_with_codes(X, self.pW, self.pC, pZ, threads=threads)
                 csr_labels.data -= offset
             else:
                 pZ = PyMatrix.init_from(csr_codes.sorted_indices(), self.dtype)
-                csr_labels, pred_csr = clib.multilabel_predict_with_codes(
-                    X, self.pW, self.pC, pZ, threads=threads
-                )
+                csr_labels, pred_csr = clib.multilabel_predict_with_codes(X, self.pW, self.pC, pZ, threads=threads)
             val = pred_csr.data
             if cond_prob:
                 val = cond_prob.transform(val, inplace=True)
@@ -601,22 +551,13 @@ class MLModel(object):
         if out is None:
             out = sp.zeros(inst_idx.shape, dtype=self.pW.dtype)
         pX = PyMatrix.init_from(X, dtype=self.pW.dtype)
-        out = clib.sparse_inner_products(
-            pX,
-            self.pW,
-            inst_idx.astype(sp.uint32),
-            label_idx.astype(sp.uint32),
-            out,
-            threads=threads,
-        )
+        out = clib.sparse_inner_products(pX, self.pW, inst_idx.astype(sp.uint32), label_idx.astype(sp.uint32), out, threads=threads,)
         return out
 
     def predict_with_coo_labels(self, X, inst_idx, label_idx, only_topk=None):
         val = self.predict_values(X, inst_idx, label_idx)
         shape = (X.shape[0], self.nr_labels)
-        pred_csr = smat_util.sorted_csr_from_coo(
-            shape, inst_idx, label_idx, val, only_topk=only_topk
-        )
+        pred_csr = smat_util.sorted_csr_from_coo(shape, inst_idx, label_idx, val, only_topk=only_topk)
         return pred_csr
 
     def predict_with_csr_labels(self, X, csr_labels, only_topk=None):
@@ -632,13 +573,9 @@ class MLModel(object):
         assert self.C != None, "This Model does not have codes"
         shape = (X.shape[0], self.nr_codes)
         tmp_ones = sp.ones_like(code_idx)
-        csr_codes = smat.csr_matrix(
-            (tmp_ones, (inst_idx, code_idx)), shape=shape, dtype=sp.float32
-        )
+        csr_codes = smat.csr_matrix((tmp_ones, (inst_idx, code_idx)), shape=shape, dtype=sp.float32)
         coo_labels = (csr_codes.dot(self.C.T)).tocoo()
-        return self.predict_with_coo_labels(
-            X, coo_labels.row, coo_labels.col, only_topk
-        )
+        return self.predict_with_coo_labels(X, coo_labels.row, coo_labels.col, only_topk)
 
     def predict_with_csr_codes(self, X, csr_codes, only_topk=None):
         assert self.C != None, "This Model does not have codes"
@@ -646,9 +583,7 @@ class MLModel(object):
         assert csr_codes.shape[0] == X.shape[0]
         assert csr_codes.shape[1] == self.nr_codes
         coo_labels = (csr_codes.dot(self.C.T)).tocoo()
-        return self.predict_with_coo_labels(
-            X, coo_labels.row, coo_labels.col, only_topk
-        )
+        return self.predict_with_coo_labels(X, coo_labels.row, coo_labels.col, only_topk)
 
 
 class HierarchicalMLModel(object):
@@ -707,16 +642,8 @@ class HierarchicalMLModel(object):
         assert param["model"] == cls.__name__
         depth = int(param.get("depth", len(glob("{}/*.model".format(folder)))))
 
-        bias = float(
-            param.get("bias", -1.0)
-        )  # backward compatibility in case bias term is not listed in param.json
-        return cls(
-            [
-                load_model("{}/{}.model".format(folder, d), dtype=dtype)
-                for d in range(depth)
-            ],
-            bias,
-        )
+        bias = float(param.get("bias", -1.0))  # backward compatibility in case bias term is not listed in param.json
+        return cls([load_model("{}/{}.model".format(folder, d), dtype=dtype) for d in range(depth)], bias,)
 
     def save(self, folder):
         if not path.exists(folder):
@@ -738,9 +665,7 @@ class HierarchicalMLModel(object):
     @classmethod
     def train(cls, prob, hierarchical=None, min_labels=2, nr_splits=2, **arg_kw):
         if hierarchical is None or hierarchical == False:
-            return HierarchicalMLModel(
-                [MLModel.train(prob, **arg_kw)], arg_kw.get("bias", 1.0)
-            )
+            return HierarchicalMLModel([MLModel.train(prob, **arg_kw)], arg_kw.get("bias", 1.0))
 
         model_chain = []
         cur_prob = prob
@@ -751,9 +676,7 @@ class HierarchicalMLModel(object):
                 cur_codes = sp.arange(cur_prob.nr_labels)
                 new_codes = cur_codes // nr_splits
                 shape = (len(cur_codes), new_codes.max() + 1)
-                newC = smat.csr_matrix(
-                    (sp.ones_like(cur_codes), (cur_codes, new_codes)), shape=shape
-                )
+                newC = smat.csr_matrix((sp.ones_like(cur_codes), (cur_codes, new_codes)), shape=shape)
                 cur_prob = MLProblem(cur_prob.pX, cur_prob.pY, newC)
             cur_model = MLModel.train(cur_prob, **arg_kw)
             model_chain += [cur_model]
@@ -766,15 +689,7 @@ class HierarchicalMLModel(object):
         return cls(model_chain, arg_kw.get("bias", 1.0))
 
     def predict(
-        self,
-        X,
-        only_topk=None,
-        csr_codes=None,
-        beam_size=2,
-        max_depth=None,
-        cond_prob=True,
-        normalized=False,
-        threads=-1,
+        self, X, only_topk=None, csr_codes=None, beam_size=2, max_depth=None, cond_prob=True, normalized=False, threads=-1,
     ):
         if max_depth is None:
             max_depth = self.depth
@@ -795,27 +710,13 @@ class HierarchicalMLModel(object):
         for d in range(max_depth):
             cur_model = self.model_chain[d]
             local_only_topk = only_topk if d == (max_depth - 1) else beam_size
-            pred_csr = cur_model.predict(
-                pX,
-                only_topk=local_only_topk,
-                csr_codes=pred_csr,
-                cond_prob=cond_prob,
-                threads=threads,
-            )
+            pred_csr = cur_model.predict(pX, only_topk=local_only_topk, csr_codes=pred_csr, cond_prob=cond_prob, threads=threads,)
         if normalized:
             pred_csr = sk_normalize(pred_csr, axis=1, copy=False, norm="l1")
         return pred_csr
 
     def predict_new(
-        self,
-        X,
-        only_topk=None,
-        csr_codes=None,
-        beam_size=2,
-        max_depth=None,
-        cond_prob=True,
-        normalized=False,
-        threads=-1,
+        self, X, only_topk=None, csr_codes=None, beam_size=2, max_depth=None, cond_prob=True, normalized=False, threads=-1,
     ):
         if max_depth is None:
             max_depth = self.depth
@@ -834,13 +735,7 @@ class HierarchicalMLModel(object):
         for d in range(max_depth):
             cur_model = self.model_chain[d]
             local_only_topk = only_topk if d == (max_depth - 1) else beam_size
-            pred_csr = cur_model.predict_new(
-                pX,
-                only_topk=local_only_topk,
-                csr_codes=pred_csr,
-                cond_prob=cond_prob,
-                threads=threads,
-            )
+            pred_csr = cur_model.predict_new(pX, only_topk=local_only_topk, csr_codes=pred_csr, cond_prob=cond_prob, threads=threads,)
         if normalized:
             pred_csr = sk_normalize(pred_csr, axis=1, copy=False, norm="l1")
         return pred_csr
@@ -861,9 +756,7 @@ class Parabel(object):
             bias = 1.0  # the bias term is default to 1.0 in the parabel package
         """Load a single tree model obtained from Parabel Package"""
         with open(path_to_file, "r") as fin:
-            nr_features = (
-                int(fin.readline()) - 1 if bias <= 0 else 0
-            )  # remove the bias term
+            nr_features = int(fin.readline()) - 1 if bias <= 0 else 0  # remove the bias term
             nr_labels = int(fin.readline())
             nr_nodes = int(fin.readline())
             max_depth = int(sp.log2(nr_nodes + 1))
@@ -880,9 +773,7 @@ class Parabel(object):
                 child_offset = 2 ** (depth + 1) - 1
                 for nid in range(nr_nodes_with_depth):
                     is_leaf = int(fin.readline().strip())
-                    left, right = [
-                        int(x) - child_offset for x in fin.readline().strip().split()
-                    ]
+                    left, right = [int(x) - child_offset for x in fin.readline().strip().split()]
                     cur_depth = int(fin.readline().strip())
                     assert cur_depth == depth
                     tmp = fin.readline().strip().split()
@@ -938,17 +829,9 @@ class CountModel(object):
         return cls(prob.Z.T.dot(prob.Y))
 
     def predict(
-        self,
-        X,
-        csr_codes=None,
-        only_topk=None,
-        cond_prob=True,
-        normalize=False,
-        **arg_kw,
+        self, X, csr_codes=None, only_topk=None, cond_prob=True, normalize=False, **arg_kw,
     ):
-        assert (
-            csr_codes is not None
-        ), "csr_codes must be provided for CountModel.prdict)"
+        assert csr_codes is not None, "csr_codes must be provided for CountModel.prdict)"
         assert csr_codes.shape[0] == X.shape[0]
         assert csr_codes.shape[1] == self.nr_codes
         if cond_prob:
@@ -1021,14 +904,10 @@ class CsrEnsembler(object):
             print(Metrics.generate(Ytrue, ens(*pred_set)))
 
 
-def ml_train(
-    X, Y, C=None, bias=None, hierarchical=None, min_labels=2, nr_splits=2, **arg_kw
-):
+def ml_train(X, Y, C=None, bias=None, hierarchical=None, min_labels=2, nr_splits=2, **arg_kw):
     """An interface function for HierarchicalMLModel.train"""
     prob = MLProblem(X, Y, C)
-    return HierarchicalMLModel.train(
-        prob, hierarchical, min_labels, nr_splits, bias=bias, **arg_kw
-    )
+    return HierarchicalMLModel.train(prob, hierarchical, min_labels, nr_splits, bias=bias, **arg_kw)
 
 
 def load_model(folder, dtype=None):
@@ -1047,9 +926,7 @@ def get_optimal_codes(Y, C, only_topk=None):
 
 # ============= Section for Ad-hoc Testing Code ==============
 class Data(object):
-    def __init__(
-        self, X, Y, L, C, code, Xt=None, Yt=None, Xv=None, Yv=None, dataset=None
-    ):
+    def __init__(self, X, Y, L, C, code, Xt=None, Yt=None, Xv=None, Yv=None, dataset=None):
         self.X = X  # feature matrix:  nr_insts * nr_features
         self.Y = Y  # label matrix:    nr_insts * nr_labels
         self.L = L  # label embedding: nr_labels * nr_label_features
@@ -1063,15 +940,7 @@ class Data(object):
         self.save_folder = "./save_models/{}".format(dataset)
 
     def update_codes(
-        self,
-        label_emb="elmo",
-        kdim=2,
-        depth=6,
-        algo=indexer.Indexer.KMEANS,
-        seed=0,
-        max_iter=20,
-        threads=-1,
-        **arg_kw,
+        self, label_emb="elmo", kdim=2, depth=6, algo=indexer.Indexer.KMEANS, seed=0, max_iter=20, threads=-1, **arg_kw,
     ):
 
         # print('depth {} kdim {} label_emb {} algo {}'.format(depth, kdim, label_emb, algo))
@@ -1088,14 +957,7 @@ class Data(object):
             self.C = smat.load_npz(code_npz)
         else:
             self.L = smat.load_npz("{}/L.{}.npz".format(self.data_folder, label_emb))
-            code = indexer.Indexer(self.L).gen(
-                kdim=kdim,
-                depth=depth,
-                algo=algo,
-                seed=seed,
-                max_iter=max_iter,
-                threads=threads,
-            )
+            code = indexer.Indexer(self.L).gen(kdim=kdim, depth=depth, algo=algo, seed=seed, max_iter=max_iter, threads=threads,)
             self.C = code.get_csc_matrix()
             smat.save_npz(code_npz, self.C, compressed=False)
 
@@ -1132,12 +994,7 @@ class Data(object):
         ret = cls(X, Y, L, C, code, Xt, Yt, Xv, Yv, dataset)
         if label_emb is not None:
             ret.update_codes(
-                label_emb=label_emb,
-                kdim=kdim,
-                depth=depth,
-                seed=seed,
-                max_iter=max_iter,
-                threads=threads,
+                label_emb=label_emb, kdim=kdim, depth=depth, seed=seed, max_iter=max_iter, threads=threads,
             )
         return ret
 
@@ -1151,14 +1008,7 @@ def grid_search(data, grid_params, **kw_args):
         new_kw_args.update(dict(zip(keys, values)))
         data.update_codes(**new_kw_args)
         prob = MLProblem(data.X, data.Y, data.C)
-        model = ml_train(
-            X=data.X,
-            Y=data.Y,
-            C=data.C,
-            hierarchical=True,
-            threshold=0.01,
-            **new_kw_args,
-        )
+        model = ml_train(X=data.X, Y=data.Y, C=data.C, hierarchical=True, threshold=0.01, **new_kw_args,)
         pred_csr = model.predict(data.Xt, only_topk=20, beam_size=10, normalized=False)
         # print(Metrics.generate(data.Yt, pred_csr))
         results += [pred_csr]
@@ -1183,9 +1033,7 @@ def test_speed(datafolder="dataset/Eurlex-4K", depth=3):
     m = MLModel(smat.rand(data.X.shape[1], data.Y.shape[1], 0.1))
     rows = sp.arange(data.Yt.shape[0], dtype=sp.uint32)
     cols = sp.arange(data.Yt.shape[1], dtype=sp.uint32)
-    inst_idx = sp.repeat(
-        rows, sp.ones_like(rows, dtype=rows.dtype) * data.Yt.shape[1]
-    ).astype(sp.uint32)
+    inst_idx = sp.repeat(rows, sp.ones_like(rows, dtype=rows.dtype) * data.Yt.shape[1]).astype(sp.uint32)
     label_idx = sp.ones((len(rows), 1), dtype=sp.uint32).dot(cols.reshape(1, -1))[:]
     yy = m.predict_values(data.Xt, inst_idx, label_idx).reshape(data.Yt.shape[0], -1)
 
@@ -1227,15 +1075,7 @@ def test_svm(datafolder="dataset/Eurlex-4K", depth=3):
     beam_size = 4
     min_labels = 2
     nr_splits = 2
-    m = ml_train(
-        prob,
-        hierarchical=True,
-        min_labels=min_labels,
-        threshold=threshold,
-        solver_type=solver_type,
-        Cp=Cp,
-        Cn=Cn,
-    )
+    m = ml_train(prob, hierarchical=True, min_labels=min_labels, threshold=threshold, solver_type=solver_type, Cp=Cp, Cn=Cn,)
     print("m.depth = {}".format(m.depth))
     pred_Y = m.predict(X, beam_size=beam_size, only_topk=only_topk)
     print(pred_Y.shape)

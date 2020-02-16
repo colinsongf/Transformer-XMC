@@ -11,27 +11,13 @@ This is a README for the experimental code in our paper
 
 ## Installation
 
-### Requirements
-  * conda 
-  * python=3.6
-  * cuda=9.0
-  * Pytorch=0.4.1
-  * pytorch-pretrained-BERT=0.6.2
-  * allenlp=0.8.4
-  
+ 
 ### Depedencies via Conda Environment
 	
-	> conda create -n xbert-env python=3.6
+	> conda create -n xbert-env python=3.7 --file requirements.txt
 	> source activate xbert-env
-	> (xbert-env) conda install scikit-learn
-	> (xbert-env) conda install pytorch=0.4.1 cuda90 -c pytorch
-	> (xbert-env) pip install urllib3==1.24
-	> (xbert-env) pip install pytorch-pretrained-bert==0.6.2
-	> (xbert-env) pip install allennlp==0.8.4
 	> (xbert-env) pip install -e .
 	
-**Warning: you need to install pytorch=0.4.1 based on the cuda version on your machine.
-
 **Notice: the following examples are executed under the ```> (xbert-env)``` conda virtual environment
 
 ## Reproduce Evaulation Results in the Paper

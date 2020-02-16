@@ -61,9 +61,7 @@ def calc_grad_norm(net):
 class DataLoader(object):
     """ Data iterator for X-Attention """
 
-    def __init__(
-        self, data, set_option="trn", batch_size=64, device=torch.device("cuda")
-    ):
+    def __init__(self, data, set_option="trn", batch_size=64, device=torch.device("cuda")):
         self.device = device
         self.set_option = set_option
         self.prepare_loader(data, set_option=set_option)
@@ -87,9 +85,7 @@ class DataLoader(object):
 
     def prepare_batch(self, batch_size=64):
         self._n_sample = len(self._dset["x"])
-        self._n_batch = int(
-            math.ceil(self._n_sample / float(batch_size))
-        )  # for the last batch
+        self._n_batch = int(math.ceil(self._n_sample / float(batch_size)))  # for the last batch
         self._batch_size = batch_size
         self._n_cluster = self.C.shape[1]
         self._n_label = self.C.shape[0]
@@ -108,9 +104,7 @@ class DataLoader(object):
         # doing padding and masking
         def pad_to_longest(insts):
             max_len = max(len(inst) for inst in insts)
-            inst_data = np.array(
-                [inst + [Constants.PAD] * (max_len - len(inst)) for inst in insts]
-            )
+            inst_data = np.array([inst + [Constants.PAD] * (max_len - len(inst)) for inst in insts])
             return inst_data
 
         # batch of x_seq with padding into torch tensor
@@ -176,27 +170,9 @@ class CNN(nn.Module):
             self.word_embeddings.weight = nn.Parameter(weights, requires_grad=False)
 
         # convolution layer
-        self.conv1 = nn.Conv2d(
-            in_channels,
-            out_channels,
-            (kernel_heights[0], embedding_length),
-            stride,
-            padding,
-        )
-        self.conv2 = nn.Conv2d(
-            in_channels,
-            out_channels,
-            (kernel_heights[1], embedding_length),
-            stride,
-            padding,
-        )
-        self.conv3 = nn.Conv2d(
-            in_channels,
-            out_channels,
-            (kernel_heights[2], embedding_length),
-            stride,
-            padding,
-        )
+        self.conv1 = nn.Conv2d(in_channels, out_channels, (kernel_heights[0], embedding_length), stride, padding,)
+        self.conv2 = nn.Conv2d(in_channels, out_channels, (kernel_heights[1], embedding_length), stride, padding,)
+        self.conv3 = nn.Conv2d(in_channels, out_channels, (kernel_heights[2], embedding_length), stride, padding,)
         # self.conv4 = nn.Conv2d(in_channels, out_channels, (kernel_heights[3], embedding_length), stride, padding)
 
         self.mlp = nn.Sequential(
@@ -245,13 +221,7 @@ class CNN(nn.Module):
 
 class SelfAttention(nn.Module):
     def __init__(
-        self,
-        batch_size,
-        output_size,
-        hidden_size,
-        vocab_size,
-        embedding_length,
-        weights,
+        self, batch_size, output_size, hidden_size, vocab_size, embedding_length, weights,
     ):
         super(SelfAttention, self).__init__()
 
@@ -348,9 +318,7 @@ class SelfAttention(nn.Module):
         hidden_matrix = torch.bmm(attn_weight_matrix, output)
         # hidden_matrix.size() = (batch_size, r, 2*hidden_size)
         # Let's now concatenate the hidden_matrix and connect it to the fully connected layer.
-        fc_out = self.fc_layer(
-            hidden_matrix.view(-1, hidden_matrix.size()[1] * hidden_matrix.size()[2])
-        )
+        fc_out = self.fc_layer(hidden_matrix.view(-1, hidden_matrix.size()[1] * hidden_matrix.size()[2]))
         logits = self.label(fc_out)
         # logits.size() = (batch_size, output_size)
 
@@ -368,9 +336,7 @@ class AttentionMatcher(object):
     def get_args_and_set_logger():
         global logger
         logging.basicConfig(
-            format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
-            datefmt="%m/%d/%Y %H:%M:%S",
-            level=logging.INFO,
+            format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s", datefmt="%m/%d/%Y %H:%M:%S", level=logging.INFO,
         )
         logger = logging.getLogger(__name__)
         parser = argparse.ArgumentParser(description="")
@@ -392,9 +358,7 @@ class AttentionMatcher(object):
             required=True,
             help="The output directory where the model predictions and checkpoints will be written.",
         )
-        parser.add_argument(
-            "--arch-name", default="self-attend", type=str, help="self-attend|conv1d"
-        )
+        parser.add_argument("--arch-name", default="self-attend", type=str, help="self-attend|conv1d")
         parser.add_argument(
             "--init_checkpoint_dir",
             default=None,
@@ -404,98 +368,52 @@ class AttentionMatcher(object):
         )
 
         ## Other parameters
+        parser.add_argument("--do_train", action="store_true", help="Whether to run training.")
+        parser.add_argument("--do_eval", action="store_true", help="Whether to run eval on the dev set.")
         parser.add_argument(
-            "--do_train", action="store_true", help="Whether to run training."
-        )
-        parser.add_argument(
-            "--do_eval", action="store_true", help="Whether to run eval on the dev set."
-        )
-        parser.add_argument(
-            "--stop_by_dev",
-            action="store_true",
-            help="Whether to run eval on the dev set.",
+            "--stop_by_dev", action="store_true", help="Whether to run eval on the dev set.",
         )
 
         # model parameters
+        parser.add_argument("--embed-size", default=512, type=int, help="#dims of word embedding")
         parser.add_argument(
-            "--embed-size", default=512, type=int, help="#dims of word embedding"
+            "--hidden-size", default=512, type=int, help="last hidden layer dimension of netH",
         )
+        parser.add_argument("--filter-size", default=128, type=int, help="#filters in conv1d of netH")
         parser.add_argument(
-            "--hidden-size",
-            default=512,
-            type=int,
-            help="last hidden layer dimension of netH",
+            "--pooling-size", default=4, type=int, help="#pooling units after conv1d of netH",
         )
-        parser.add_argument(
-            "--filter-size", default=128, type=int, help="#filters in conv1d of netH"
-        )
-        parser.add_argument(
-            "--pooling-size",
-            default=4,
-            type=int,
-            help="#pooling units after conv1d of netH",
-        )
-        parser.add_argument(
-            "--pretrained-path", default=None, type=str, help="pretrained matcher path"
-        )
+        parser.add_argument("--pretrained-path", default=None, type=str, help="pretrained matcher path")
 
         # optimizer
-        parser.add_argument(
-            "--optim", default="adam", help="adam | rmsprop | sgd", type=str
-        )
+        parser.add_argument("--optim", default="adam", help="adam | rmsprop | sgd", type=str)
         parser.add_argument("--lr", default=1e-4, help="learning rate", type=float)
+        parser.add_argument("--momentum", default=0.9, help="sgd-based momentum", type=float)
+        parser.add_argument("--factor", default=0.1, help="new_lr = lr * factor", type=float)
         parser.add_argument(
-            "--momentum", default=0.9, help="sgd-based momentum", type=float
+            "--patience", default=10, help="Number of epochs with no improvement after which learning rate will be reduced", type=int,
         )
         parser.add_argument(
-            "--factor", default=0.1, help="new_lr = lr * factor", type=float
-        )
-        parser.add_argument(
-            "--patience",
-            default=10,
-            help="Number of epochs with no improvement after which learning rate will be reduced",
-            type=int,
-        )
-        parser.add_argument(
-            "--min-lr",
-            default=1e-7,
-            help="A lower bound on the learning rate of all param groups or each group respectively",
-            type=float,
+            "--min-lr", default=1e-7, help="A lower bound on the learning rate of all param groups or each group respectively", type=float,
         )
         parser.add_argument("--random-seed", default=1126, type=int, help="random seed")
 
         # loss func
         parser.add_argument(
-            "--loss-func",
-            default="l2-hinge",
-            help="bce | l1-hinge | l2-hinge",
-            type=str,
+            "--loss-func", default="l2-hinge", help="bce | l1-hinge | l2-hinge", type=str,
         )
-        parser.add_argument(
-            "--margin", default=1.0, help="margin in hinge loss", type=float
-        )
+        parser.add_argument("--margin", default=1.0, help="margin in hinge loss", type=float)
 
         # training
         parser.add_argument("--cuda", action="store_true", help="use CUDA")
-        parser.add_argument(
-            "--train_batch_size", default=128, type=int, help="batch size for training"
-        )
-        parser.add_argument(
-            "--eval_batch_size", default=512, type=int, help="batch size for evaluation"
-        )
-        parser.add_argument(
-            "--num_train_epochs", default=200, type=int, help="max epoch for training"
-        )
+        parser.add_argument("--train_batch_size", default=128, type=int, help="batch size for training")
+        parser.add_argument("--eval_batch_size", default=512, type=int, help="batch size for evaluation")
+        parser.add_argument("--num_train_epochs", default=200, type=int, help="max epoch for training")
         parser.add_argument("--log_interval", default=10, type=int, help="log interval")
-        parser.add_argument(
-            "--eval_interval", default=50, type=int, help="eval interval"
-        )
+        parser.add_argument("--eval_interval", default=50, type=int, help="eval interval")
         # prediction
         parser.add_argument(
-            "--only_topk",
-            default=10,
-            type=int,
-            help="store topk prediction for matching stage",
+            "--only_topk", default=10, type=int, help="store topk prediction for matching stage",
         )
         args = parser.parse_args()
         print(args)
@@ -510,9 +428,7 @@ class AttentionMatcher(object):
         random.seed(args.random_seed)
         torch.manual_seed(args.random_seed)
         if torch.cuda.is_available() and not args.cuda:
-            logging(
-                "WARNING: You have a CUDA device, so you should probably run with --cuda"
-            )
+            logging("WARNING: You have a CUDA device, so you should probably run with --cuda")
         device = torch.device("cuda" if args.cuda else "cpu")
 
     @staticmethod
@@ -526,13 +442,7 @@ class AttentionMatcher(object):
         NUM_TOKEN = len(data_dict["stoi"])
         NUM_LABEL = data_dict["C"].shape[0]
         NUM_CLUSTER = data_dict["C"].shape[1]
-        logger.info(
-            "TRN {} VAL {} TST {}".format(
-                len(trn_features["xseq"]),
-                len(val_features["xseq"]),
-                len(tst_features["xseq"]),
-            )
-        )
+        logger.info("TRN {} VAL {} TST {}".format(len(trn_features["xseq"]), len(val_features["xseq"]), len(tst_features["xseq"]),))
         logger.info("NUM_LABEL {}".format(NUM_LABEL))
         logger.info("NUM_CLUSTER {}".format(NUM_CLUSTER))
 
@@ -541,15 +451,9 @@ class AttentionMatcher(object):
         C_tst = data_utils.Ylist_to_Ysparse(data_dict["tst"]["cseq"], L=NUM_CLUSTER)
 
         # data iterator
-        trn_iter = DataLoader(
-            data_dict, set_option="trn", batch_size=args.train_batch_size, device=device
-        )
-        val_iter = DataLoader(
-            data_dict, set_option="val", batch_size=args.eval_batch_size, device=device
-        )
-        tst_iter = DataLoader(
-            data_dict, set_option="tst", batch_size=args.eval_batch_size, device=device
-        )
+        trn_iter = DataLoader(data_dict, set_option="trn", batch_size=args.train_batch_size, device=device)
+        val_iter = DataLoader(data_dict, set_option="val", batch_size=args.eval_batch_size, device=device)
+        tst_iter = DataLoader(data_dict, set_option="tst", batch_size=args.eval_batch_size, device=device)
 
         return {
             "trn_features": trn_features,
@@ -567,13 +471,7 @@ class AttentionMatcher(object):
         }
 
     def prepare_attention_model(
-        self,
-        args,
-        num_clusters,
-        vocab_size,
-        arch_name="self-attend",
-        loss_func="l2-hinge",
-        init_checkpoint_dir=None,
+        self, args, num_clusters, vocab_size, arch_name="self-attend", loss_func="l2-hinge", init_checkpoint_dir=None,
     ):
 
         """ Initialize/Load an X-attention model for sequeence classification"""
@@ -621,9 +519,7 @@ class AttentionMatcher(object):
             if path.exists(pretrained_path):
                 model.load_state_dict(torch.load(pretrained_path))
             else:
-                raise ValueError(
-                    "pretrained_path does not exist: {}".format(pretrained_path)
-                )
+                raise ValueError("pretrained_path does not exist: {}".format(pretrained_path))
 
         # overwrite
         self.model = model
@@ -642,12 +538,7 @@ class AttentionMatcher(object):
         loss_func = matcher_json_dict["loss_func"]
         arch_name = matcher_json_dict["arch_name"]
         self.prepare_attention_model(
-            args,
-            num_clusters,
-            vocab_size,
-            arch_name=arch_name,
-            loss_func=loss_func,
-            init_checkpoint_dir=args.init_checkpoint_dir,
+            args, num_clusters, vocab_size, arch_name=arch_name, loss_func=loss_func, init_checkpoint_dir=args.init_checkpoint_dir,
         )
 
     def save(self, args):
@@ -689,9 +580,7 @@ class AttentionMatcher(object):
                 # get topk prediction rows,cols,vals
                 cpred_topk_vals, cpred_topk_cols = c_pred.topk(topk, dim=1)
                 cpred_topk_rows = total_example + torch.arange(cur_batch_size)
-                cpred_topk_rows = cpred_topk_rows.view(cur_batch_size, 1).expand_as(
-                    cpred_topk_cols
-                )
+                cpred_topk_rows = cpred_topk_rows.view(cur_batch_size, 1).expand_as(cpred_topk_cols)
                 total_example += cur_batch_size
 
                 # append
@@ -707,20 +596,10 @@ class AttentionMatcher(object):
         C_eval_pred = pred_csr_codes
 
         # evaluation
-        eval_metrics = rf_linear.Metrics.generate(
-            C_eval_true, C_eval_pred, topk=args.only_topk
-        )
+        eval_metrics = rf_linear.Metrics.generate(C_eval_true, C_eval_pred, topk=args.only_topk)
         if verbose:
-            logger.info(
-                "| matcher_eval_prec {}".format(
-                    " ".join("{:4.2f}".format(100 * v) for v in eval_metrics.prec)
-                )
-            )
-            logger.info(
-                "| matcher_eval_recl {}".format(
-                    " ".join("{:4.2f}".format(100 * v) for v in eval_metrics.recall)
-                )
-            )
+            logger.info("| matcher_eval_prec {}".format(" ".join("{:4.2f}".format(100 * v) for v in eval_metrics.prec)))
+            logger.info("| matcher_eval_recl {}".format(" ".join("{:4.2f}".format(100 * v) for v in eval_metrics.recall)))
             logger.info("-" * 89)
         return eval_loss, eval_metrics, C_eval_pred
 
@@ -730,23 +609,12 @@ class AttentionMatcher(object):
         if args.optim == "adam":
             optimizer = torch.optim.Adam(self.model.parameters(), lr=args.lr)
         elif args.optim == "rmsprop":
-            optimizer = torch.optim.RMSprop(
-                self.model.parameters(), lr=args.lr, momentum=args.momentum
-            )
+            optimizer = torch.optim.RMSprop(self.model.parameters(), lr=args.lr, momentum=args.momentum)
         elif args.optim == "sgd":
-            optimizer = torch.optim.SGD(
-                self.model.parameters(), lr=args.lr, momentum=args.momentum
-            )
+            optimizer = torch.optim.SGD(self.model.parameters(), lr=args.lr, momentum=args.momentum)
         else:
             raise ValueError("unknown optim %s [adam | rmsprop | sgd]" % (args.optim))
-        scheduler = lr_scheduler.ReduceLROnPlateau(
-            optimizer,
-            "max",
-            factor=args.factor,
-            patience=args.patience,
-            min_lr=1e-6,
-            verbose=True,
-        )
+        scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, "max", factor=args.factor, patience=args.patience, min_lr=1e-6, verbose=True,)
 
         # Start Batch Training
         logger.info("***** Running training *****")
@@ -789,49 +657,22 @@ class AttentionMatcher(object):
                     cur_gnorm = calc_grad_norm(self.model)
                     logger.info(
                         "| epoch {:3d} | {:4d}/{:4d} batches | ms/batch {:5.4f} | train_loss {:e} | gnorm {:e}".format(
-                            epoch,
-                            step,
-                            len(trn_iter),
-                            elapsed * 1000 / args.log_interval,
-                            cur_loss,
-                            cur_gnorm,
+                            epoch, step, len(trn_iter), elapsed * 1000 / args.log_interval, cur_loss, cur_gnorm,
                         )
                     )
                     total_loss = 0.0
 
                 # eval on dev set and save best model
                 if step % args.eval_interval == 0 and step > 0 and args.stop_by_dev:
-                    eval_loss, eval_metrics, C_eval_pred = self.predict(
-                        args, eval_iter, C_eval, topk=args.only_topk, verbose=False
-                    )
+                    eval_loss, eval_metrics, C_eval_pred = self.predict(args, eval_iter, C_eval, topk=args.only_topk, verbose=False)
                     logger.info("-" * 89)
-                    logger.info(
-                        "| epoch {:3d} evaluation | time: {:5.4f}s | eval_loss {:e}".format(
-                            epoch, total_run_time, eval_loss
-                        )
-                    )
-                    logger.info(
-                        "| matcher_eval_prec {}".format(
-                            " ".join(
-                                "{:4.2f}".format(100 * v) for v in eval_metrics.prec
-                            )
-                        )
-                    )
-                    logger.info(
-                        "| matcher_eval_recl {}".format(
-                            " ".join(
-                                "{:4.2f}".format(100 * v) for v in eval_metrics.recall
-                            )
-                        )
-                    )
+                    logger.info("| epoch {:3d} evaluation | time: {:5.4f}s | eval_loss {:e}".format(epoch, total_run_time, eval_loss))
+                    logger.info("| matcher_eval_prec {}".format(" ".join("{:4.2f}".format(100 * v) for v in eval_metrics.prec)))
+                    logger.info("| matcher_eval_recl {}".format(" ".join("{:4.2f}".format(100 * v) for v in eval_metrics.recall)))
 
                     avg_matcher_prec = np.mean(eval_metrics.prec)
                     if avg_matcher_prec > best_matcher_prec and epoch > 0:
-                        logger.info(
-                            "| **** saving model at global_step {} ****".format(
-                                global_step
-                            )
-                        )
+                        logger.info("| **** saving model at global_step {} ****".format(global_step))
                         best_matcher_prec = avg_matcher_prec
                         self.save(args)
                     logger.info("-" * 89)
@@ -844,9 +685,7 @@ def main():
     args = AttentionMatcher.get_args_and_set_logger()["args"]
 
     # load data
-    AttentionMatcher.bootstrap_for_training(
-        args
-    )  # need to first initialize device variable
+    AttentionMatcher.bootstrap_for_training(args)  # need to first initialize device variable
     data = AttentionMatcher.load_data(args)  # for load_data function
     trn_iter = data["trn_iter"]
     val_iter = data["val_iter"]
@@ -862,11 +701,7 @@ def main():
     if args.init_checkpoint_dir is None:
         logger.info("start with random initialization")
         model.prepare_attention_model(
-            args,
-            num_clusters,
-            vocab_size,
-            arch_name=args.arch_name,
-            loss_func=args.loss_func,
+            args, num_clusters, vocab_size, arch_name=args.arch_name, loss_func=args.loss_func,
         )
     else:
         logger.info("start with init_checkpoint_dir")
@@ -878,13 +713,9 @@ def main():
 
     # do_eval on test set and save prediction output
     if args.do_eval:
-        eval_loss, eval_metrics, C_tst_pred = model.predict(
-            args, tst_iter, C_tst, topk=args.only_topk
-        )
+        eval_loss, eval_metrics, C_tst_pred = model.predict(args, tst_iter, C_tst, topk=args.only_topk)
         pred_csr_codes = C_tst_pred
-        pred_csr_codes = rf_util.smat_util.sorted_csr(
-            pred_csr_codes, only_topk=args.only_topk
-        )
+        pred_csr_codes = rf_util.smat_util.sorted_csr(pred_csr_codes, only_topk=args.only_topk)
         pred_csr_codes = transform_prediction(pred_csr_codes, transform="lpsvm-l2")
         prediction_path = os.path.join(args.output_dir, "C_eval_pred.npz")
         smat.save_npz(prediction_path, pred_csr_codes)

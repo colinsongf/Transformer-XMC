@@ -59,13 +59,7 @@ class LinearModel(object):
     ):
         if mode in ["full-model", "matcher"]:
             if mode == "full-model":
-                prob = MLProblem(
-                    X,
-                    Y,
-                    C,
-                    Z_pred=Z_pred,
-                    negative_sampling_scheme=negative_sampling_scheme,
-                )
+                prob = MLProblem(X, Y, C, Z_pred=Z_pred, negative_sampling_scheme=negative_sampling_scheme,)
             elif mode == "matcher":
                 assert C is not None
                 Y = Y.dot(C)
@@ -80,13 +74,7 @@ class LinearModel(object):
                     min_labels = prob.C.shape[1]
         elif mode == "ranker":
             assert C is not None
-            prob = MLProblem(
-                X,
-                Y,
-                C,
-                Z_pred=Z_pred,
-                negative_sampling_scheme=negative_sampling_scheme,
-            )
+            prob = MLProblem(X, Y, C, Z_pred=Z_pred, negative_sampling_scheme=negative_sampling_scheme,)
             hierarchical = False
             min_labels = 2
 
@@ -105,13 +93,7 @@ class LinearModel(object):
         return cls(model)
 
     def predict(self, X, csr_codes=None, beam_size=10, only_topk=10, cond_prob=True):
-        pred_csr = self.model.predict(
-            X,
-            only_topk=only_topk,
-            csr_codes=csr_codes,
-            beam_size=beam_size,
-            cond_prob=cond_prob,
-        )
+        pred_csr = self.model.predict(X, only_topk=only_topk, csr_codes=csr_codes, beam_size=beam_size, cond_prob=cond_prob,)
         return pred_csr
 
 
@@ -138,9 +120,7 @@ def load_feature_matrix(args):
     elif args.feature_format % 3 == 2 and args.input_inst_feat2:
         X = HierarchicalMLModel.load_feature_matrix(args.input_inst_feat2)
     else:
-        raise NotImplementedError(
-            f"args.feature_format = {args.feature_format} is not supported."
-        )
+        raise NotImplementedError(f"args.feature_format = {args.feature_format} is not supported.")
     if args.feature_format // 3 == 0:
         X = normalize(X, axis=1, copy=False)
     return X
@@ -178,9 +158,7 @@ class LinearTrainCommand(SubCommand):
 
     @classmethod
     def add_parser(cls, super_parser):
-        parser = super_parser.add_parser(
-            "train", aliases=[], help="Train a linear ranker with codes"
-        )
+        parser = super_parser.add_parser("train", aliases=[], help="Train a linear ranker with codes")
         cls.add_arguments(parser)
         parser.set_defaults(run=cls.run)
 
@@ -261,18 +239,11 @@ class LinearTrainCommand(SubCommand):
         )
 
         parser.add_argument(
-            "--mode",
-            type=str,
-            default="full-model",
-            metavar="STR",
-            help="mode: [full-model|ranker] (default full-model)",
+            "--mode", type=str, default="full-model", metavar="STR", help="mode: [full-model|ranker] (default full-model)",
         )
 
         parser.add_argument(
-            "-S",
-            "--shallow",
-            action="store_true",
-            help="perform shallow linear modeling instead of hierarchical linear modeling",
+            "-S", "--shallow", action="store_true", help="perform shallow linear modeling instead of hierarchical linear modeling",
         )
 
         parser.add_argument(
@@ -281,25 +252,15 @@ class LinearTrainCommand(SubCommand):
             type=str,
             default="L2R_L2LOSS_SVC_DUAL",
             metavar="SOLVER_STR",
-            help="{} (default L2R_L2LOSS_SVC_DUAL)".format(
-                " | ".join(solver_dict.keys())
-            ),
+            help="{} (default L2R_L2LOSS_SVC_DUAL)".format(" | ".join(solver_dict.keys())),
         )
 
         parser.add_argument(
-            "--Cp",
-            type=float,
-            default=1.0,
-            metavar="VAL",
-            help="coefficient for positive class in the loss function (default 1.0)",
+            "--Cp", type=float, default=1.0, metavar="VAL", help="coefficient for positive class in the loss function (default 1.0)",
         )
 
         parser.add_argument(
-            "--Cn",
-            type=float,
-            default=1.0,
-            metavar="VAL",
-            help="coefficient for negative class in the loss function (default 1.0)",
+            "--Cn", type=float, default=1.0, metavar="VAL", help="coefficient for negative class in the loss function (default 1.0)",
         )
 
         parser.add_argument(
@@ -312,21 +273,11 @@ class LinearTrainCommand(SubCommand):
         )
 
         parser.add_argument(
-            "-t",
-            "--threshold",
-            type=float,
-            default=0.1,
-            metavar="VAL",
-            help="threshold to sparsity the model weights (default 0.1)",
+            "-t", "--threshold", type=float, default=0.1, metavar="VAL", help="threshold to sparsity the model weights (default 0.1)",
         )
 
         parser.add_argument(
-            "-n",
-            "--threads",
-            type=int,
-            default=-1,
-            metavar="INT",
-            help="number of threads to use (default -1 to denote all the CPUs)",
+            "-n", "--threads", type=int, default=-1, metavar="INT", help="number of threads to use (default -1 to denote all the CPUs)",
         )
 
 
@@ -343,13 +294,7 @@ class LinearPredictCommand(SubCommand):
             csr_codes = None
 
         cond_prob = PostProcessor.get(args.transform)
-        Yt_pred = model.predict(
-            Xt,
-            csr_codes=csr_codes,
-            beam_size=args.beam_size,
-            only_topk=args.only_topk,
-            cond_prob=cond_prob,
-        )
+        Yt_pred = model.predict(Xt, csr_codes=csr_codes, beam_size=args.beam_size, only_topk=args.only_topk, cond_prob=cond_prob,)
         if args.input_inst_label is not None and path.exists(args.input_inst_label):
             Yt = smat.load_npz(args.input_inst_label) if args.input_inst_label else None
             metric = Metrics.generate(Yt, Yt_pred, topk=10)
@@ -360,29 +305,18 @@ class LinearPredictCommand(SubCommand):
 
     @classmethod
     def add_parser(cls, super_parser):
-        parser = super_parser.add_parser(
-            "predict", aliases=[], help="Generate predictions based on the given ranker"
-        )
+        parser = super_parser.add_parser("predict", aliases=[], help="Generate predictions based on the given ranker")
         cls.add_arguments(parser)
         parser.set_defaults(run=cls.run)
 
     @staticmethod
     def add_arguments(parser):
         parser.add_argument(
-            "-m",
-            "--input-ranker-folder",
-            type=str,
-            required=True,
-            help="path to the ranker folder",
+            "-m", "--input-ranker-folder", type=str, required=True, help="path to the ranker folder",
         )
 
         parser.add_argument(
-            "-x",
-            "-x1",
-            "--input-inst-feat1",
-            type=str,
-            required=True,
-            help="path to the npz file of the feature matrix (CSR)",
+            "-x", "-x1", "--input-inst-feat1", type=str, required=True, help="path to the npz file of the feature matrix (CSR)",
         )
         parser.add_argument(
             "-x2",
@@ -412,11 +346,7 @@ class LinearPredictCommand(SubCommand):
         )
 
         parser.add_argument(
-            "-o",
-            "--output-path",
-            type=str,
-            required=True,
-            help="path to the npz file of output prediction (CSR)",
+            "-o", "--output-path", type=str, required=True, help="path to the npz file of output prediction (CSR)",
         )
 
         parser.add_argument(
@@ -437,19 +367,11 @@ class LinearPredictCommand(SubCommand):
         )
 
         parser.add_argument(
-            "-k",
-            "--only-topk",
-            type=int,
-            default=10,
-            help="number of top labels in the prediction",
+            "-k", "--only-topk", type=int, default=10, help="number of top labels in the prediction",
         )
 
         parser.add_argument(
-            "-b",
-            "--beam-size",
-            type=int,
-            default=10,
-            help="size of beam search in the prediction",
+            "-b", "--beam-size", type=int, default=10, help="size of beam search in the prediction",
         )
 
 

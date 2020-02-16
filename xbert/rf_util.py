@@ -31,9 +31,7 @@ def load_dynamic_library(dirname, soname, forced_rebuild=False):
             path_to_so = glob(path.join(dirname, soname) + "*.so")[0]
             _c_lib = CDLL(path_to_so)
         except:
-            raise Exception(
-                "{soname} library cannot be found and built.".format(soname=soname)
-            )
+            raise Exception("{soname} library cannot be found and built.".format(soname=soname))
     return _c_lib
 
 
@@ -117,9 +115,7 @@ class PyMatrix(ctypes.Structure):
                     coo.col,
                     coo.data,
                 )
-                indptr = sp.cumsum(
-                    sp.bincount(row + 1, minlength=(nr_rows + 1)), dtype=sp.uint64
-                )
+                indptr = sp.cumsum(sp.bincount(row + 1, minlength=(nr_rows + 1)), dtype=sp.uint64)
                 indices = sp.zeros(nnz, dtype=sp.uint32)
                 data = sp.zeros(nnz, dtype=dtype)
                 sorted_idx = sp.argsort(row * sp.float64(nr_cols) + col)
@@ -128,12 +124,7 @@ class PyMatrix(ctypes.Structure):
                 return indptr, indices, data
 
             def coo_to_csc(coo):
-                return coo_to_csr(
-                    smat.coo_matrix(
-                        (coo.data, (coo.col, coo.row)),
-                        shape=[coo.shape[1], coo.shape[0]],
-                    )
-                )
+                return coo_to_csr(smat.coo_matrix((coo.data, (coo.col, coo.row)), shape=[coo.shape[1], coo.shape[0]],))
 
             coo = A.tocoo()
             self.type = PyMatrix.SPARSE
@@ -174,9 +165,7 @@ class PyMatrix(ctypes.Structure):
 
 
 class PredAllocator(object):
-    CFUNCTYPE = CFUNCTYPE(
-        None, c_uint64, c_uint64, c_uint64, c_void_p, c_void_p, c_void_p, c_void_p
-    )
+    CFUNCTYPE = CFUNCTYPE(None, c_uint64, c_uint64, c_uint64, c_void_p, c_void_p, c_void_p, c_void_p)
 
     def __init__(self, rows=0, cols=0, dtype=sp.float64):
         self.rows = rows
@@ -196,26 +185,14 @@ class PredAllocator(object):
         self.data1 = sp.zeros(nnz, dtype=self.dtype)
         self.data2 = sp.zeros(nnz, dtype=self.dtype)
 
-        cast(indptr_ptr, POINTER(c_uint64)).contents.value = self.indptr.ctypes.data_as(
-            c_void_p
-        ).value
-        cast(
-            indices_ptr, POINTER(c_uint64)
-        ).contents.value = self.indices.ctypes.data_as(c_void_p).value
-        cast(data1_ptr, POINTER(c_uint64)).contents.value = self.data1.ctypes.data_as(
-            c_void_p
-        ).value
-        cast(data2_ptr, POINTER(c_uint64)).contents.value = self.data2.ctypes.data_as(
-            c_void_p
-        ).value
+        cast(indptr_ptr, POINTER(c_uint64)).contents.value = self.indptr.ctypes.data_as(c_void_p).value
+        cast(indices_ptr, POINTER(c_uint64)).contents.value = self.indices.ctypes.data_as(c_void_p).value
+        cast(data1_ptr, POINTER(c_uint64)).contents.value = self.data1.ctypes.data_as(c_void_p).value
+        cast(data2_ptr, POINTER(c_uint64)).contents.value = self.data2.ctypes.data_as(c_void_p).value
 
     def get_pred(self):
-        csr_labels = smat.csc_matrix(
-            (self.data1, self.indices, self.indptr), shape=(self.rows, self.cols)
-        ).tocsr()
-        pred_csr = smat.csc_matrix(
-            (self.data2, self.indices, self.indptr), shape=(self.rows, self.cols)
-        ).tocsr()
+        csr_labels = smat.csc_matrix((self.data1, self.indices, self.indptr), shape=(self.rows, self.cols)).tocsr()
+        pred_csr = smat.csc_matrix((self.data2, self.indices, self.indptr), shape=(self.rows, self.cols)).tocsr()
         return csr_labels, pred_csr
 
     @property
@@ -224,9 +201,7 @@ class PredAllocator(object):
 
 
 class COOAllocator(object):
-    CFUNCTYPE = CFUNCTYPE(
-        None, c_uint64, c_uint64, c_uint64, c_void_p, c_void_p, c_void_p
-    )
+    CFUNCTYPE = CFUNCTYPE(None, c_uint64, c_uint64, c_uint64, c_void_p, c_void_p, c_void_p)
 
     def __init__(self, rows=0, cols=0, dtype=sp.float64):
         self.rows = rows
@@ -243,30 +218,18 @@ class COOAllocator(object):
         self.row_idx = sp.zeros(nnz, dtype=sp.uint64)
         self.col_idx = sp.zeros(nnz, dtype=sp.uint64)
         self.data = sp.zeros(nnz, dtype=self.dtype)
-        cast(row_ptr, POINTER(c_uint64)).contents.value = self.row_idx.ctypes.data_as(
-            c_void_p
-        ).value
-        cast(col_ptr, POINTER(c_uint64)).contents.value = self.col_idx.ctypes.data_as(
-            c_void_p
-        ).value
-        cast(val_ptr, POINTER(c_uint64)).contents.value = self.data.ctypes.data_as(
-            c_void_p
-        ).value
+        cast(row_ptr, POINTER(c_uint64)).contents.value = self.row_idx.ctypes.data_as(c_void_p).value
+        cast(col_ptr, POINTER(c_uint64)).contents.value = self.col_idx.ctypes.data_as(c_void_p).value
+        cast(val_ptr, POINTER(c_uint64)).contents.value = self.data.ctypes.data_as(c_void_p).value
 
     def tocoo(self):
-        return smat.coo_matrix(
-            (self.data, (self.row_idx, self.col_idx)), shape=(self.rows, self.cols)
-        )
+        return smat.coo_matrix((self.data, (self.row_idx, self.col_idx)), shape=(self.rows, self.cols))
 
     def tocsr(self):
-        return smat.csr_matrix(
-            (self.data, (self.row_idx, self.col_idx)), shape=(self.rows, self.cols)
-        )
+        return smat.csr_matrix((self.data, (self.row_idx, self.col_idx)), shape=(self.rows, self.cols))
 
     def tocsc(self):
-        return smat.csc_matrix(
-            (self.data, (self.row_idx, self.col_idx)), shape=(self.rows, self.cols)
-        )
+        return smat.csc_matrix((self.data, (self.row_idx, self.col_idx)), shape=(self.rows, self.cols))
 
     @property
     def cfunc(self):
@@ -334,22 +297,14 @@ class smat_util(object):
 
     @staticmethod
     def sorted_csc_from_coo(shape, row_idx, col_idx, val, only_topk=None):
-        csr = smat_util.sorted_csr_from_coo(
-            shape[::-1], col_idx, row_idx, val, only_topk=None
-        )
-        return smat.csc_matrix(
-            (csr.data, csr.indices, csr.indptr), shape, dtype=val.dtype
-        )
+        csr = smat_util.sorted_csr_from_coo(shape[::-1], col_idx, row_idx, val, only_topk=None)
+        return smat.csc_matrix((csr.data, csr.indices, csr.indptr), shape, dtype=val.dtype)
 
     @staticmethod
     def sorted_csr(csr, only_topk=None):
         assert isinstance(csr, smat.csr_matrix)
-        row_idx = sp.repeat(
-            sp.arange(csr.shape[0], dtype=sp.uint32), csr.indptr[1:] - csr.indptr[:-1]
-        )
-        return smat_util.sorted_csr_from_coo(
-            csr.shape, row_idx, csr.indices, csr.data, only_topk
-        )
+        row_idx = sp.repeat(sp.arange(csr.shape[0], dtype=sp.uint32), csr.indptr[1:] - csr.indptr[:-1])
+        return smat_util.sorted_csr_from_coo(csr.shape, row_idx, csr.indices, csr.data, only_topk)
 
     @staticmethod
     def sorted_csc(csc, only_topk=None):
@@ -363,18 +318,9 @@ class smat_util(object):
         if isinstance(X, smat.csc_matrix):
             if fast:  # around 5x to 10x faster than smat.hstack
                 data = sp.concatenate((X.data, new_column.ravel()))
-                indices = sp.concatenate(
-                    (X.indices, sp.arange(X.shape[0], dtype=X.indices.dtype))
-                )
-                indptr = sp.concatenate(
-                    (
-                        X.indptr,
-                        sp.array([X.indptr[-1] + X.shape[0]], dtype=X.indptr.dtype),
-                    )
-                )
-                X = smat.csc_matrix(
-                    (data, indices, indptr), shape=(X.shape[0], X.shape[1] + 1)
-                )
+                indices = sp.concatenate((X.indices, sp.arange(X.shape[0], dtype=X.indices.dtype)))
+                indptr = sp.concatenate((X.indptr, sp.array([X.indptr[-1] + X.shape[0]], dtype=X.indptr.dtype),))
+                X = smat.csc_matrix((data, indices, indptr), shape=(X.shape[0], X.shape[1] + 1))
             else:
                 X = smat.hstack([X, new_column]).tocsc()
         elif isinstance(X, smat.csr_matrix):
@@ -389,9 +335,7 @@ class smat_util(object):
                 data[mask_loc] = value
                 indices[inv_mask] = X.indices
                 data[inv_mask] = X.data
-                X = smat.csr_matrix(
-                    (data, indices, indptr), shape=(X.shape[0], X.shape[1] + 1)
-                )
+                X = smat.csr_matrix((data, indices, indptr), shape=(X.shape[0], X.shape[1] + 1))
             else:
                 X = smat.hstack([X, new_column]).tocsr()
         elif isinstance(X, sp.ndarray):
@@ -403,9 +347,7 @@ class smat_util(object):
         rows = sp.arange(dense.shape[0], dtype=sp.uint32)
         cols = sp.arange(dense.shape[1], dtype=sp.uint32)
         row_idx = sp.repeat(rows, sp.ones_like(rows) * len(cols)).astype(sp.uint32)
-        col_idx = (
-            sp.ones((len(rows), 1), dtype=sp.uint32).dot(cols.reshape(1, -1)).ravel()
-        )
+        col_idx = sp.ones((len(rows), 1), dtype=sp.uint32).dot(cols.reshape(1, -1)).ravel()
         return smat.coo_matrix((dense.ravel(), (row_idx, col_idx)), shape=dense.shape)
 
     @staticmethod
@@ -415,9 +357,7 @@ class smat_util(object):
         nnz = len(csr.data)
         nnz_of_rows = csr.indptr[1:] - csr.indptr[:-1]
         row_idx = sp.repeat(sp.arange(csr.shape[0]), nnz_of_rows)
-        rel = sp.array(
-            mm - (sp.arange(nnz) - csr.indptr[row_idx]), dtype=dtype
-        )  # adding 1 to avoiding zero entries
+        rel = sp.array(mm - (sp.arange(nnz) - csr.indptr[row_idx]), dtype=dtype)  # adding 1 to avoiding zero entries
         return smat.csr_matrix((rel, csr.indices, csr.indptr), csr.shape)
 
 

@@ -35,9 +35,7 @@ def repack_output(output_ids, output_mask, num_labels):
     idx_arr = torch.nonzero(output_mask)
     rows = idx_arr[:, 0]
     cols = output_ids[idx_arr[:, 0], idx_arr[:, 1]]
-    c_true = torch.zeros(
-        (batch_size, num_labels), dtype=torch.float, device=output_ids.device
-    )
+    c_true = torch.zeros((batch_size, num_labels), dtype=torch.float, device=output_ids.device)
     c_true[rows, cols] = 1.0
     return c_true
 
@@ -145,9 +143,7 @@ class BertForXMLC(BertPreTrainedModel):
         pooled_output = self.dropout(pooled_output)
         logits = self.classifier(pooled_output)
 
-        outputs = (logits,) + outputs[
-            2:
-        ]  # add hidden states and attention if they are here
+        outputs = (logits,) + outputs[2:]  # add hidden states and attention if they are here
 
         if output_ids is not None and output_mask is not None:
             labels = repack_output(output_ids, output_mask, self.num_labels)
@@ -224,9 +220,7 @@ class RobertaForXMLC(BertPreTrainedModel):
         sequence_output = outputs[0]
         logits = self.classifier(sequence_output)
 
-        outputs = (logits,) + outputs[
-            2:
-        ]  # add hidden states and attention if they are here
+        outputs = (logits,) + outputs[2:]  # add hidden states and attention if they are here
 
         if output_ids is not None and output_mask is not None:
             labels = repack_output(output_ids, output_mask, self.num_labels)
@@ -317,9 +311,7 @@ class XLNetForXMLC(XLNetPreTrainedModel):
         output = self.sequence_summary(output)
         logits = self.logits_proj(output)
 
-        outputs = (logits,) + transformer_outputs[
-            1:
-        ]  # Keep mems, hidden states, attentions if there are in it
+        outputs = (logits,) + transformer_outputs[1:]  # Keep mems, hidden states, attentions if there are in it
 
         if output_ids is not None and output_mask is not None:
             labels = repack_output(output_ids, output_mask, self.num_labels)

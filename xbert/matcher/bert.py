@@ -125,9 +125,7 @@ class BertForSequenceClassification(BertPreTrainedModel):
         self.apply(self.init_bert_weights)
 
     def forward(self, input_ids, token_type_ids=None, attention_mask=None):
-        _, pooled_output = self.bert(
-            input_ids, token_type_ids, attention_mask, output_all_encoded_layers=False
-        )
+        _, pooled_output = self.bert(input_ids, token_type_ids, attention_mask, output_all_encoded_layers=False)
         pooled_output = self.dropout(pooled_output)
         logits = self.classifier(pooled_output)
         return logits
@@ -164,9 +162,7 @@ class BertMatcher(object):
     def get_args_and_set_logger():
         global logger
         logging.basicConfig(
-            format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
-            datefmt="%m/%d/%Y %H:%M:%S",
-            level=logging.INFO,
+            format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s", datefmt="%m/%d/%Y %H:%M:%S", level=logging.INFO,
         )
         logger = logging.getLogger(__name__)
         parser = argparse.ArgumentParser(description="")
@@ -205,74 +201,41 @@ class BertMatcher(object):
             help="The directory where the model checkpoints will be intialized from.",
         )
         ## Other parameters
+        parser.add_argument("--do_train", action="store_true", help="Whether to run training.")
+        parser.add_argument("--do_eval", action="store_true", help="Whether to run eval on the dev set.")
         parser.add_argument(
-            "--do_train", action="store_true", help="Whether to run training."
+            "--stop_by_dev", action="store_true", help="Whether to run eval on the dev set.",
         )
         parser.add_argument(
-            "--do_eval", action="store_true", help="Whether to run eval on the dev set."
+            "--cache_dir", default="", type=str, help="Where do you want to store the pre-trained models downloaded from s3",
         )
         parser.add_argument(
-            "--stop_by_dev",
-            action="store_true",
-            help="Whether to run eval on the dev set.",
+            "--train_batch_size", default=32, type=int, help="Total batch size for training.",
+        )
+        parser.add_argument("--eval_batch_size", default=64, type=int, help="Total batch size for eval.")
+        parser.add_argument(
+            "--loss_func", default="l2-hinge", type=str, help="loss function: bce | l1-hinge | l2-hinge",
+        )
+        parser.add_argument("--margin", default=1.0, help="margin in hinge loss", type=float)
+        parser.add_argument(
+            "--learning_rate", default=5e-5, type=float, help="The initial learning rate for Adam.",
         )
         parser.add_argument(
-            "--cache_dir",
-            default="",
-            type=str,
-            help="Where do you want to store the pre-trained models downloaded from s3",
-        )
-        parser.add_argument(
-            "--train_batch_size",
-            default=32,
-            type=int,
-            help="Total batch size for training.",
-        )
-        parser.add_argument(
-            "--eval_batch_size", default=64, type=int, help="Total batch size for eval."
-        )
-        parser.add_argument(
-            "--loss_func",
-            default="l2-hinge",
-            type=str,
-            help="loss function: bce | l1-hinge | l2-hinge",
-        )
-        parser.add_argument(
-            "--margin", default=1.0, help="margin in hinge loss", type=float
-        )
-        parser.add_argument(
-            "--learning_rate",
-            default=5e-5,
-            type=float,
-            help="The initial learning rate for Adam.",
-        )
-        parser.add_argument(
-            "--num_train_epochs",
-            default=10,
-            type=int,
-            help="Total number of training epochs to perform.",
+            "--num_train_epochs", default=10, type=int, help="Total number of training epochs to perform.",
         )
         parser.add_argument(
             "--warmup_proportion",
             default=0.1,
             type=float,
-            help="Proportion of training to perform linear learning rate warmup for. "
-            "E.g., 0.1 = 10%% of training.",
+            help="Proportion of training to perform linear learning rate warmup for. " "E.g., 0.1 = 10%% of training.",
         )
         parser.add_argument(
-            "--no_cuda",
-            action="store_true",
-            help="Whether not to use CUDA when available",
+            "--no_cuda", action="store_true", help="Whether not to use CUDA when available",
         )
         parser.add_argument(
-            "--local_rank",
-            type=int,
-            default=-1,
-            help="local_rank for distributed training on gpus",
+            "--local_rank", type=int, default=-1, help="local_rank for distributed training on gpus",
         )
-        parser.add_argument(
-            "--seed", type=int, default=42, help="random seed for initialization"
-        )
+        parser.add_argument("--seed", type=int, default=42, help="random seed for initialization")
         parser.add_argument(
             "--gradient_accumulation_steps",
             type=int,
@@ -280,9 +243,7 @@ class BertMatcher(object):
             help="Number of updates steps to accumulate before performing a backward/update pass.",
         )
         parser.add_argument(
-            "--fp16",
-            action="store_true",
-            help="Whether to use 16-bit float precision instead of 32-bit",
+            "--fp16", action="store_true", help="Whether to use 16-bit float precision instead of 32-bit",
         )
         parser.add_argument(
             "--loss_scale",
@@ -293,26 +254,15 @@ class BertMatcher(object):
             "Positive power of 2: static loss scaling value.\n",
         )
         parser.add_argument(
-            "--server_ip",
-            type=str,
-            default="",
-            help="Can be used for distant debugging.",
+            "--server_ip", type=str, default="", help="Can be used for distant debugging.",
         )
         parser.add_argument(
-            "--server_port",
-            type=str,
-            default="",
-            help="Can be used for distant debugging.",
+            "--server_port", type=str, default="", help="Can be used for distant debugging.",
         )
         parser.add_argument("--log_interval", default=50, type=int, help="log interval")
+        parser.add_argument("--eval_interval", default=100, type=int, help="eval interval")
         parser.add_argument(
-            "--eval_interval", default=100, type=int, help="eval interval"
-        )
-        parser.add_argument(
-            "--only_topk",
-            default=10,
-            type=int,
-            help="store topk prediction for matching stage",
+            "--only_topk", default=10, type=int, help="store topk prediction for matching stage",
         )
 
         args = parser.parse_args()
@@ -329,15 +279,11 @@ class BertMatcher(object):
             import ptvsd
 
             print("Waiting for debugger attach")
-            ptvsd.enable_attach(
-                address=(args.server_ip, args.server_port), redirect_output=True
-            )
+            ptvsd.enable_attach(address=(args.server_ip, args.server_port), redirect_output=True)
             ptvsd.wait_for_attach()
 
         if args.local_rank == -1 or args.no_cuda:
-            device = torch.device(
-                "cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu"
-            )
+            device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
             n_gpu = torch.cuda.device_count()
         else:
             torch.cuda.set_device(args.local_rank)
@@ -352,15 +298,9 @@ class BertMatcher(object):
         )
 
         if args.gradient_accumulation_steps < 1:
-            raise ValueError(
-                "Invalid gradient_accumulation_steps parameter: {}, should be >= 1".format(
-                    args.gradient_accumulation_steps
-                )
-            )
+            raise ValueError("Invalid gradient_accumulation_steps parameter: {}, should be >= 1".format(args.gradient_accumulation_steps))
 
-        args.train_batch_size = (
-            args.train_batch_size // args.gradient_accumulation_steps
-        )
+        args.train_batch_size = args.train_batch_size // args.gradient_accumulation_steps
 
         random.seed(args.seed)
         np.random.seed(args.seed)
@@ -382,11 +322,7 @@ class BertMatcher(object):
         tst_features = data_dict["tst_features"]
         NUM_LABEL = data_dict["C"].shape[0]
         NUM_CLUSTER = data_dict["C"].shape[1]
-        logger.info(
-            "TRN {} VAL {} TST {}".format(
-                len(trn_features), len(val_features), len(tst_features)
-            )
-        )
+        logger.info("TRN {} VAL {} TST {}".format(len(trn_features), len(val_features), len(tst_features)))
         logger.info("NUM_LABEL {}".format(NUM_LABEL))
         logger.info("NUM_CLUSTER {}".format(NUM_CLUSTER))
 
@@ -405,26 +341,17 @@ class BertMatcher(object):
             "C_tst": C_tst,
         }
 
-    def prepare_bert_model(
-        self, args, num_clusters, loss_func="l2-hinge", init_checkpoint_dir=None
-    ):
+    def prepare_bert_model(self, args, num_clusters, loss_func="l2-hinge", init_checkpoint_dir=None):
         """ Load a pretrained BertModel for sequence classification"""
         cache_dir = (
             args.cache_dir
             if args.cache_dir
-            else os.path.join(
-                str(PYTORCH_PRETRAINED_BERT_CACHE),
-                "distributed_{}".format(args.local_rank),
-            )
+            else os.path.join(str(PYTORCH_PRETRAINED_BERT_CACHE), "distributed_{}".format(args.local_rank),)
         )
         if init_checkpoint_dir is None:
-            model = BertForSequenceClassification.from_pretrained(
-                args.bert_model, cache_dir=cache_dir, num_labels=num_clusters
-            )
+            model = BertForSequenceClassification.from_pretrained(args.bert_model, cache_dir=cache_dir, num_labels=num_clusters)
         else:
-            model = BertForSequenceClassification.from_pretrained(
-                init_checkpoint_dir, cache_dir=cache_dir, num_labels=num_clusters
-            )
+            model = BertForSequenceClassification.from_pretrained(init_checkpoint_dir, cache_dir=cache_dir, num_labels=num_clusters)
 
         if args.fp16:
             model.half()
@@ -433,9 +360,7 @@ class BertMatcher(object):
             try:
                 from apex.parallel import DistributedDataParallel as DDP
             except ImportError:
-                raise ImportError(
-                    "Please install apex from https://www.github.com/nvidia/apex to use distributed and fp16 training."
-                )
+                raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use distributed and fp16 training.")
 
             model = DDP(model)
         elif n_gpu > 1:
@@ -464,17 +389,12 @@ class BertMatcher(object):
         num_clusters = matcher_json_dict["num_clusters"]
         loss_func = matcher_json_dict["loss_func"]
         self.prepare_bert_model(
-            args,
-            num_clusters,
-            loss_func=loss_func,
-            init_checkpoint_dir=args.init_checkpoint_dir,
+            args, num_clusters, loss_func=loss_func, init_checkpoint_dir=args.init_checkpoint_dir,
         )
 
     def save(self, args):
         # Save a trained model, configuration and tokenizer
-        model_to_save = (
-            self.model.module if hasattr(self.model, "module") else self.model
-        )  # Only save the model it-self
+        model_to_save = self.model.module if hasattr(self.model, "module") else self.model  # Only save the model it-self
 
         if not os.path.exists(args.output_dir):
             os.makedirs(args.output_dir)
@@ -499,34 +419,16 @@ class BertMatcher(object):
         logger.info("***** Running evaluation *****")
         logger.info("  Num examples = %d", len(eval_features))
         logger.info("  Batch size = %d", args.eval_batch_size)
-        all_input_ids = torch.tensor(
-            [f.input_ids for f in eval_features], dtype=torch.long
-        )
-        all_input_mask = torch.tensor(
-            [f.input_mask for f in eval_features], dtype=torch.long
-        )
-        all_segment_ids = torch.tensor(
-            [f.segment_ids for f in eval_features], dtype=torch.long
-        )
-        all_output_ids = torch.tensor(
-            [f.output_ids for f in eval_features], dtype=torch.long
-        )
-        all_output_mask = torch.tensor(
-            [f.output_mask for f in eval_features], dtype=torch.long
-        )
-        eval_data = TensorDataset(
-            all_input_ids,
-            all_input_mask,
-            all_segment_ids,
-            all_output_ids,
-            all_output_mask,
-        )
+        all_input_ids = torch.tensor([f.input_ids for f in eval_features], dtype=torch.long)
+        all_input_mask = torch.tensor([f.input_mask for f in eval_features], dtype=torch.long)
+        all_segment_ids = torch.tensor([f.segment_ids for f in eval_features], dtype=torch.long)
+        all_output_ids = torch.tensor([f.output_ids for f in eval_features], dtype=torch.long)
+        all_output_mask = torch.tensor([f.output_mask for f in eval_features], dtype=torch.long)
+        eval_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_output_ids, all_output_mask,)
 
         # Run prediction for full data
         eval_sampler = SequentialSampler(eval_data)
-        eval_dataloader = DataLoader(
-            eval_data, sampler=eval_sampler, batch_size=args.eval_batch_size
-        )
+        eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.eval_batch_size)
 
         self.model.eval()
         total_loss = 0.0
@@ -539,18 +441,14 @@ class BertMatcher(object):
 
             with torch.no_grad():
                 c_pred = self.model(input_ids, segment_ids, input_mask)
-                c_true = data_utils.repack_output(
-                    output_ids, output_mask, self.num_clusters, device
-                )
+                c_true = data_utils.repack_output(output_ids, output_mask, self.num_clusters, device)
                 loss = self.criterion(c_pred, c_true)
             total_loss += cur_batch_size * loss
 
             # get topk prediction rows,cols,vals
             cpred_topk_vals, cpred_topk_cols = c_pred.topk(topk, dim=1)
             cpred_topk_rows = total_example + torch.arange(cur_batch_size)
-            cpred_topk_rows = cpred_topk_rows.view(cur_batch_size, 1).expand_as(
-                cpred_topk_cols
-            )
+            cpred_topk_rows = cpred_topk_rows.view(cur_batch_size, 1).expand_as(cpred_topk_cols)
             total_example += cur_batch_size
 
             # append
@@ -566,82 +464,43 @@ class BertMatcher(object):
         C_eval_pred = pred_csr_codes
 
         # evaluation
-        eval_metrics = rf_linear.Metrics.generate(
-            C_eval_true, C_eval_pred, topk=args.only_topk
-        )
+        eval_metrics = rf_linear.Metrics.generate(C_eval_true, C_eval_pred, topk=args.only_topk)
         if verbose:
-            logger.info(
-                "| matcher_eval_prec {}".format(
-                    " ".join("{:4.2f}".format(100 * v) for v in eval_metrics.prec)
-                )
-            )
-            logger.info(
-                "| matcher_eval_recl {}".format(
-                    " ".join("{:4.2f}".format(100 * v) for v in eval_metrics.recall)
-                )
-            )
+            logger.info("| matcher_eval_prec {}".format(" ".join("{:4.2f}".format(100 * v) for v in eval_metrics.prec)))
+            logger.info("| matcher_eval_recl {}".format(" ".join("{:4.2f}".format(100 * v) for v in eval_metrics.recall)))
             logger.info("-" * 89)
         return eval_loss, eval_metrics, C_eval_pred
 
     def train(self, args, trn_features, eval_features=None, C_eval=None):
         # Prepare optimizer
         num_train_optimization_steps = (
-            int(
-                len(trn_features)
-                / args.train_batch_size
-                / args.gradient_accumulation_steps
-            )
-            * args.num_train_epochs
+            int(len(trn_features) / args.train_batch_size / args.gradient_accumulation_steps) * args.num_train_epochs
         )
         if args.local_rank != -1:
-            num_train_optimization_steps = (
-                num_train_optimization_steps // torch.distributed.get_world_size()
-            )
+            num_train_optimization_steps = num_train_optimization_steps // torch.distributed.get_world_size()
 
         param_optimizer = list(self.model.named_parameters())
         no_decay = ["bias", "LayerNorm.bias", "LayerNorm.weight"]
         optimizer_grouped_parameters = [
-            {
-                "params": [
-                    p for n, p in param_optimizer if not any(nd in n for nd in no_decay)
-                ],
-                "weight_decay": 0.01,
-            },
-            {
-                "params": [
-                    p for n, p in param_optimizer if any(nd in n for nd in no_decay)
-                ],
-                "weight_decay": 0.0,
-            },
+            {"params": [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)], "weight_decay": 0.01,},
+            {"params": [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], "weight_decay": 0.0,},
         ]
         if args.fp16:
             try:
                 from apex.optimizers import FP16_Optimizer
                 from apex.optimizers import FusedAdam
             except ImportError:
-                raise ImportError(
-                    "Please install apex from https://www.github.com/nvidia/apex to use distributed and fp16 training."
-                )
+                raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use distributed and fp16 training.")
 
-            optimizer = FusedAdam(
-                optimizer_grouped_parameters,
-                lr=args.learning_rate,
-                bias_correction=False,
-                max_grad_norm=1.0,
-            )
+            optimizer = FusedAdam(optimizer_grouped_parameters, lr=args.learning_rate, bias_correction=False, max_grad_norm=1.0,)
             if args.loss_scale == 0:
                 optimizer = FP16_Optimizer(optimizer, dynamic_loss_scale=True)
             else:
                 optimizer = FP16_Optimizer(optimizer, static_loss_scale=args.loss_scale)
-            warmup_linear = WarmupLinearSchedule(
-                warmup=args.warmup_proportion, t_total=num_train_optimization_steps
-            )
+            warmup_linear = WarmupLinearSchedule(warmup=args.warmup_proportion, t_total=num_train_optimization_steps)
         else:
             optimizer = BertAdam(
-                optimizer_grouped_parameters,
-                lr=args.learning_rate,
-                warmup=args.warmup_proportion,
-                t_total=num_train_optimization_steps,
+                optimizer_grouped_parameters, lr=args.learning_rate, warmup=args.warmup_proportion, t_total=num_train_optimization_steps,
             )
 
         # Start Batch Training
@@ -652,35 +511,17 @@ class BertMatcher(object):
         global_step = 0
         nb_tr_steps = 0
         tr_loss = 0
-        all_input_ids = torch.tensor(
-            [f.input_ids for f in trn_features], dtype=torch.long
-        )
-        all_input_mask = torch.tensor(
-            [f.input_mask for f in trn_features], dtype=torch.long
-        )
-        all_segment_ids = torch.tensor(
-            [f.segment_ids for f in trn_features], dtype=torch.long
-        )
-        all_output_ids = torch.tensor(
-            [f.output_ids for f in trn_features], dtype=torch.long
-        )
-        all_output_mask = torch.tensor(
-            [f.output_mask for f in trn_features], dtype=torch.long
-        )
-        train_data = TensorDataset(
-            all_input_ids,
-            all_input_mask,
-            all_segment_ids,
-            all_output_ids,
-            all_output_mask,
-        )
+        all_input_ids = torch.tensor([f.input_ids for f in trn_features], dtype=torch.long)
+        all_input_mask = torch.tensor([f.input_mask for f in trn_features], dtype=torch.long)
+        all_segment_ids = torch.tensor([f.segment_ids for f in trn_features], dtype=torch.long)
+        all_output_ids = torch.tensor([f.output_ids for f in trn_features], dtype=torch.long)
+        all_output_mask = torch.tensor([f.output_mask for f in trn_features], dtype=torch.long)
+        train_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_output_ids, all_output_mask,)
         if args.local_rank == -1:
             train_sampler = RandomSampler(train_data)
         else:
             train_sampler = DistributedSampler(train_data)
-        train_dataloader = DataLoader(
-            train_data, sampler=train_sampler, batch_size=args.train_batch_size
-        )
+        train_dataloader = DataLoader(train_data, sampler=train_sampler, batch_size=args.train_batch_size)
 
         self.model.train()
         total_run_time = 0.0
@@ -693,9 +534,7 @@ class BertMatcher(object):
                 batch = tuple(t.to(device) for t in batch)
                 input_ids, input_mask, segment_ids, output_ids, output_mask = batch
                 c_pred = self.model(input_ids, segment_ids, input_mask)
-                c_true = data_utils.repack_output(
-                    output_ids, output_mask, self.num_clusters, device
-                )
+                c_true = data_utils.repack_output(output_ids, output_mask, self.num_clusters, device)
                 loss = self.criterion(c_pred, c_true)
 
                 if n_gpu > 1:
@@ -716,9 +555,7 @@ class BertMatcher(object):
                     if args.fp16:
                         # modify learning rate with special warm up BERT uses
                         # if args.fp16 is False, BertAdam is used that handles this automatically
-                        lr_this_step = args.learning_rate * warmup_linear.get_lr(
-                            global_step, args.warmup_proportion
-                        )
+                        lr_this_step = args.learning_rate * warmup_linear.get_lr(global_step, args.warmup_proportion)
                         for param_group in optimizer.param_groups:
                             param_group["lr"] = lr_this_step
                     optimizer.step()
@@ -731,47 +568,21 @@ class BertMatcher(object):
                     cur_loss = tr_loss / nb_tr_steps
                     logger.info(
                         "| epoch {:3d} | {:4d}/{:4d} batches | ms/batch {:5.4f} | train_loss {:e}".format(
-                            epoch,
-                            step,
-                            len(train_dataloader),
-                            elapsed * 1000 / args.log_interval,
-                            cur_loss,
+                            epoch, step, len(train_dataloader), elapsed * 1000 / args.log_interval, cur_loss,
                         )
                     )
 
                 # eval on dev set and save best model
                 if step % args.eval_interval == 0 and step > 0 and args.stop_by_dev:
-                    eval_loss, eval_metrics, C_eval_pred = self.predict(
-                        args, eval_features, C_eval, topk=args.only_topk, verbose=False
-                    )
+                    eval_loss, eval_metrics, C_eval_pred = self.predict(args, eval_features, C_eval, topk=args.only_topk, verbose=False)
                     logger.info("-" * 89)
-                    logger.info(
-                        "| epoch {:3d} evaluation | time: {:5.4f}s | eval_loss {:e}".format(
-                            epoch, total_run_time, eval_loss
-                        )
-                    )
-                    logger.info(
-                        "| matcher_eval_prec {}".format(
-                            " ".join(
-                                "{:4.2f}".format(100 * v) for v in eval_metrics.prec
-                            )
-                        )
-                    )
-                    logger.info(
-                        "| matcher_eval_recl {}".format(
-                            " ".join(
-                                "{:4.2f}".format(100 * v) for v in eval_metrics.recall
-                            )
-                        )
-                    )
+                    logger.info("| epoch {:3d} evaluation | time: {:5.4f}s | eval_loss {:e}".format(epoch, total_run_time, eval_loss))
+                    logger.info("| matcher_eval_prec {}".format(" ".join("{:4.2f}".format(100 * v) for v in eval_metrics.prec)))
+                    logger.info("| matcher_eval_recl {}".format(" ".join("{:4.2f}".format(100 * v) for v in eval_metrics.recall)))
 
                     avg_matcher_prec = np.mean(eval_metrics.prec)
                     if avg_matcher_prec > best_matcher_prec and epoch > 0:
-                        logger.info(
-                            "| **** saving model at global_step {} ****".format(
-                                global_step
-                            )
-                        )
+                        logger.info("| **** saving model at global_step {} ****".format(global_step))
                         best_matcher_prec = avg_matcher_prec
                         self.save(args)
                     logger.info("-" * 89)
@@ -824,13 +635,9 @@ def main():
 
     # do_eval on test set and save prediction output
     if args.do_eval:
-        eval_loss, eval_metrics, C_tst_pred = model.predict(
-            args, tst_features, C_tst, topk=args.only_topk
-        )
+        eval_loss, eval_metrics, C_tst_pred = model.predict(args, tst_features, C_tst, topk=args.only_topk)
         pred_csr_codes = C_tst_pred
-        pred_csr_codes = rf_util.smat_util.sorted_csr(
-            pred_csr_codes, only_topk=args.only_topk
-        )
+        pred_csr_codes = rf_util.smat_util.sorted_csr(pred_csr_codes, only_topk=args.only_topk)
         pred_csr_codes = transform_prediction(pred_csr_codes, transform="lpsvm-l2")
         prediction_path = os.path.join(args.output_dir, "C_eval_pred.npz")
         smat.save_npz(prediction_path, pred_csr_codes)

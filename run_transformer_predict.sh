@@ -27,7 +27,7 @@ PRED_NPZ_PATHS=""
 LABEL_NAME_ARR=( pifa-a5-s0 pifa-neural-a5-s0 text-emb-a5-s0 )
 MODEL_NAME_ARR=( bert-large-cased-whole-word-masking_seq-128 roberta-large_seq-128 xlnet-large-cased_seq-128 )
 
-#LABEL_NAME_ARR=( pifa-a5-s0 )
+LABEL_NAME_ARR=( pifa-a5-s0 )
 #LABEL_NAME_ARR=( pifa-neural-a5-s0 )
 #LABEL_NAME_ARR=( text-emb-a5-s0 )
 #MODEL_NAME_ARR=( bert-large-cased-whole-word-masking_seq-128 roberta-large_seq-128 )
@@ -45,7 +45,7 @@ for LABEL_NAME in "${LABEL_NAME_ARR[@]}"; do
       -y datasets/${DATASET}/Y.trn.npz \
       -z ${OUTPUT_DIR}/matcher-cased_fp32/${MODEL_NAME}/final_model/C_trn_pred.npz \
       -c ${OUTPUT_DIR}/indexer/code.npz \
-      -o ${RANKER_DIR} -t 0.01 \
+      -o ${RANKER_DIR} -t 0.001 \
       -f 0 -ns 2 --mode ranker \
 #"
     PRED_NPZ_PATH=${RANKER_DIR}/tst.pred.npz

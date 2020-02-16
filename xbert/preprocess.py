@@ -40,16 +40,7 @@ from transformers import (
 )
 
 ALL_MODELS = sum(
-    (
-        tuple(conf.pretrained_config_archive_map.keys())
-        for conf in (
-            BertConfig,
-            XLNetConfig,
-            XLMConfig,
-            RobertaConfig,
-            DistilBertConfig,
-        )
-    ),
+    (tuple(conf.pretrained_config_archive_map.keys()) for conf in (BertConfig, XLNetConfig, XLMConfig, RobertaConfig, DistilBertConfig,)),
     (),
 )
 
@@ -58,19 +49,13 @@ MODEL_CLASSES = {
     "xlnet": (XLNetConfig, XLNetForSequenceClassification, XLNetTokenizer),
     "xlm": (XLMConfig, XLMForSequenceClassification, XLMTokenizer),
     "roberta": (RobertaConfig, RobertaForSequenceClassification, RobertaTokenizer),
-    "distilbert": (
-        DistilBertConfig,
-        DistilBertForSequenceClassification,
-        DistilBertTokenizer,
-    ),
+    "distilbert": (DistilBertConfig, DistilBertForSequenceClassification, DistilBertTokenizer,),
     "albert": (AlbertConfig, AlbertForSequenceClassification, AlbertTokenizer),
 }
 
 
 logging.basicConfig(
-    format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
-    datefmt="%m/%d/%Y %H:%M:%S",
-    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s", datefmt="%m/%d/%Y %H:%M:%S", level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
 
@@ -131,12 +116,7 @@ def convert_examples_to_features(
             logger.info("Writing example %d" % (ex_index))
 
         # truncate long text by 8192 chars as they will exceed max_seq_len anyway
-        inputs = tokenizer.encode_plus(
-            text=example.text[:8192],
-            text_pair=None,
-            add_special_tokens=True,
-            max_length=max_xseq_len,
-        )
+        inputs = tokenizer.encode_plus(text=example.text[:8192], text_pair=None, add_special_tokens=True, max_length=max_xseq_len,)
 
         input_ids, token_type_ids = inputs["input_ids"], inputs["token_type_ids"]
         xseq_lens.append(len(input_ids))
@@ -148,26 +128,16 @@ def convert_examples_to_features(
         padding_length = max_xseq_len - len(input_ids)
         if pad_on_left:
             input_ids = ([pad_token] * padding_length) + input_ids
-            attention_mask = (
-                [0 if mask_padding_with_zero else 1] * padding_length
-            ) + attention_mask
+            attention_mask = ([0 if mask_padding_with_zero else 1] * padding_length) + attention_mask
             token_type_ids = ([pad_token_segment_id] * padding_length) + token_type_ids
         else:
             input_ids = input_ids + ([pad_token] * padding_length)
-            attention_mask = attention_mask + (
-                [0 if mask_padding_with_zero else 1] * padding_length
-            )
+            attention_mask = attention_mask + ([0 if mask_padding_with_zero else 1] * padding_length)
             token_type_ids = token_type_ids + ([pad_token_segment_id] * padding_length)
 
-        assert (
-            len(input_ids) == max_xseq_len
-        ), "Error with input length {} vs {}".format(len(input_ids), max_xseq_len)
-        assert (
-            len(attention_mask) == max_xseq_len
-        ), "Error with input length {} vs {}".format(len(attention_mask), max_xseq_len)
-        assert (
-            len(token_type_ids) == max_xseq_len
-        ), "Error with input length {} vs {}".format(len(token_type_ids), max_xseq_len)
+        assert len(input_ids) == max_xseq_len, "Error with input length {} vs {}".format(len(input_ids), max_xseq_len)
+        assert len(attention_mask) == max_xseq_len, "Error with input length {} vs {}".format(len(attention_mask), max_xseq_len)
+        assert len(token_type_ids) == max_xseq_len, "Error with input length {} vs {}".format(len(token_type_ids), max_xseq_len)
 
         # labels
         labels = example.label
@@ -184,12 +154,8 @@ def convert_examples_to_features(
             logger.info("*** Example ***")
             logger.info("guid: %s" % (example.guid))
             logger.info("input_ids: %s" % " ".join([str(x) for x in input_ids]))
-            logger.info(
-                "attention_mask: %s" % " ".join([str(x) for x in attention_mask])
-            )
-            logger.info(
-                "token_type_ids: %s" % " ".join([str(x) for x in token_type_ids])
-            )
+            logger.info("attention_mask: %s" % " ".join([str(x) for x in attention_mask]))
+            logger.info("token_type_ids: %s" % " ".join([str(x) for x in token_type_ids]))
             logger.info("output_ids: %s" % " ".join([str(x) for x in output_ids]))
             logger.info("output_mask: %s" % " ".join([str(x) for x in output_mask]))
 
@@ -231,12 +197,8 @@ def main(args):
     logger.info("loading data into quadruple set")
     trn_text_path = os.path.join(args.input_data_dir, "train_raw_texts.txt")
     tst_text_path = os.path.join(args.input_data_dir, "test_raw_texts.txt")
-    trn_xseq_list, trn_cseq_list, trn_yseq_list = load_text_data(
-        trn_text_path, Y_trn, csr_codes
-    )
-    tst_xseq_list, tst_cseq_list, tst_yseq_list = load_text_data(
-        tst_text_path, Y_tst, csr_codes
-    )
+    trn_xseq_list, trn_cseq_list, trn_yseq_list = load_text_data(trn_text_path, Y_trn, csr_codes)
+    tst_xseq_list, tst_cseq_list, tst_yseq_list = load_text_data(tst_text_path, Y_tst, csr_codes)
 
     # load pretrained model tokenizers
     args.model_type = args.model_type.lower()
@@ -260,20 +222,10 @@ def main(args):
         pad_token_segment_id=4 if args.model_type in ["xlnet"] else 0,
     )
     logger.info(
-        "trn_xseq: min={} max={} mean={} median={}".format(
-            np.min(xseq_lens),
-            np.max(xseq_lens),
-            np.mean(xseq_lens),
-            np.median(xseq_lens),
-        )
+        "trn_xseq: min={} max={} mean={} median={}".format(np.min(xseq_lens), np.max(xseq_lens), np.mean(xseq_lens), np.median(xseq_lens),)
     )
     logger.info(
-        "trn_cseq: min={} max={} mean={} median={}".format(
-            np.min(cseq_lens),
-            np.max(cseq_lens),
-            np.mean(cseq_lens),
-            np.median(cseq_lens),
-        )
+        "trn_cseq: min={} max={} mean={} median={}".format(np.min(cseq_lens), np.max(cseq_lens), np.mean(cseq_lens), np.median(cseq_lens),)
     )
 
     # create ttest set features
@@ -287,20 +239,10 @@ def main(args):
         pad_token_segment_id=4 if args.model_type in ["xlnet"] else 0,
     )
     logger.info(
-        "tst_xseq: min={} max={} mean={} median={}".format(
-            np.min(xseq_lens),
-            np.max(xseq_lens),
-            np.mean(xseq_lens),
-            np.median(xseq_lens),
-        )
+        "tst_xseq: min={} max={} mean={} median={}".format(np.min(xseq_lens), np.max(xseq_lens), np.mean(xseq_lens), np.median(xseq_lens),)
     )
     logger.info(
-        "tst_cseq: min={} max={} mean={} median={}".format(
-            np.min(cseq_lens),
-            np.max(cseq_lens),
-            np.mean(cseq_lens),
-            np.median(cseq_lens),
-        )
+        "tst_cseq: min={} max={} mean={} median={}".format(np.min(cseq_lens), np.max(cseq_lens), np.mean(cseq_lens), np.median(cseq_lens),)
     )
 
     # save data dict
@@ -328,12 +270,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     ## Required parameters
     parser.add_argument(
-        "-m",
-        "--model-type",
-        type=str,
-        required=True,
-        default="bert",
-        help="preprocess for model-type [bert | xlnet | xlm | roberta]",
+        "-m", "--model-type", type=str, required=True, default="bert", help="preprocess for model-type [bert | xlnet | xlm | roberta]",
     )
     parser.add_argument(
         "-n",
@@ -341,8 +278,7 @@ if __name__ == "__main__":
         type=str,
         required=True,
         default="bert-base-uncased",
-        help="Path to pre-trained model or shortcut name selected in the list: "
-        + ", ".join(ALL_MODELS),
+        help="Path to pre-trained model or shortcut name selected in the list: " + ", ".join(ALL_MODELS),
     )
     parser.add_argument(
         "-i",
@@ -373,27 +309,16 @@ if __name__ == "__main__":
     )
     ## Other parameters
     parser.add_argument(
-        "--config_name",
-        default="",
-        type=str,
-        help="Pretrained config name or path if not the same as model_name",
+        "--config_name", default="", type=str, help="Pretrained config name or path if not the same as model_name",
     )
     parser.add_argument(
-        "--tokenizer_name",
-        default="",
-        type=str,
-        help="Pretrained tokenizer name or path if not the same as model_name",
+        "--tokenizer_name", default="", type=str, help="Pretrained tokenizer name or path if not the same as model_name",
     )
     parser.add_argument(
-        "--cache_dir",
-        default="",
-        type=str,
-        help="Where do you want to store the pre-trained models downloaded from s3",
+        "--cache_dir", default="", type=str, help="Where do you want to store the pre-trained models downloaded from s3",
     )
     parser.add_argument(
-        "--do_lower_case",
-        action="store_true",
-        help="Set this flag if you are using an uncased model.",
+        "--do_lower_case", action="store_true", help="Set this flag if you are using an uncased model.",
     )
     parser.add_argument(
         "--max_xseq_len",
