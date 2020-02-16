@@ -10,6 +10,7 @@ import scipy as sp
 import scipy.sparse as smat
 import ctypes
 from ctypes import *
+from sklearn.preprocessing import normalize as sk_normalize
 
 from xbert.rf_util import PyMatrix, fillprototype, load_dynamic_library
 
@@ -339,12 +340,13 @@ def main(args):
     if not path.exists(output_code_dir):
         os.makedirs(output_code_dir, exist_ok=True)
 
-    if algo == Indexing.SKMEANS:
-        feat_mat = sk_normalize(feat_mat, axis=1, norm="l2", copy=False)
-
     # Indexing algorithm
     # C: nr_labels x nr_codes, stored in csr sparse matrix
-    code = Indexer(feat_mat).gen(kdim=kdim, depth=depth, algo=algo, seed=seed, max_iter=max_iter, threads=threads)
+    indexer = Indexer(feat_mat)
+    if algo == indexer.SKMEANS:
+        feat_mat = sk_normalize(feat_mat, axis=1, norm="l2", copy=False)
+
+    code = indexer.gen(kdim=kdim, depth=depth, algo=algo, seed=seed, max_iter=max_iter, threads=threads)
     if verbose:
         code.print()
     C = code.get_csc_matrix()
