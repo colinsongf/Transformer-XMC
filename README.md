@@ -14,7 +14,7 @@ This is a README for the experimental code in our paper
  
 ### Depedencies via Conda Environment
 	
-	> conda create -n xbert-env python=3.7 --file requirements.txt
+	> conda create -n xbert-env python=3.7 --file environment.yml
 	> source activate xbert-env
 	> (xbert-env) pip install -e .
 	
