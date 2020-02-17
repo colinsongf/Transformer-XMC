@@ -4,18 +4,22 @@
 DATASET=$1
 if [ ${DATASET} == 'Eurlex-4K' ]; then
     DEPTH=6
+    MAX_ITER=20
 elif [ ${DATASET} == 'Wiki10-31K' ]; then
     DEPTH=9
+    MAX_ITER=20
 elif [ ${DATASET} == 'AmazonCat-13K' ]; then
     DEPTH=8
+    MAX_ITER=20
 elif [ ${DATASET} == 'Wiki-500K' ]; then
     DEPTH=13
+    MAX_ITER=20
 else
     echo "unknown dataset for the experiment!"
     exit
 fi
 
-ALGO_LIST=( 5 )
+ALGO_LIST=( 0 )
 SEED_LIST=( 0 1 2 )
 LABEL_EMB_LIST=( pifa )
 
@@ -30,7 +34,7 @@ for idx in "${!LABEL_EMB_LIST[@]}"; do
         python -m xbert.indexer \
             -i datasets/${DATASET}/L.${LABEL_EMB}.npz \
             -o ${OUTPUT_DIR}/indexer \
-            -d ${DEPTH} --algo ${ALGO} --seed ${SEED} --max-iter 20
+            -d ${DEPTH} --algo ${ALGO} --seed ${SEED} --max-iter ${MAX_ITER}
 
         # ranker train
         RANKER_DIR=${OUTPUT_DIR}/ranker_linear
