@@ -23,15 +23,11 @@ function gdrive-get() {
 }
 
 if [ ${dataset} == 'Eurlex-4K' ]; then
-	gdrive-get 1E2hEYqmYOFzbNAV-MMIUQFtzGUMHqk-O ${dataset}.tar.bz2
+	gdrive-get 13bF53xYimNYsdHGc_Jzgs6Tr094O96wM ${dataset}.tar.bz2
 elif [ ${dataset} == 'Wiki10-31K' ]; then
 	gdrive-get 13ljstQ5hkysbuwVL69t6CuZEdi9VBxDz ${dataset}.tar.bz2
-elif [ ${dataset} == 'AmazonCat-13K' ]; then
-	gdrive-get 1fxLgUxw_fDLXQvEv4CTc_GkfiDhTYgVb ${dataset}.tar.bz2
-elif [ ${dataset} == 'Wiki-500K' ]; then
-	gdrive-get 15lauJjb3mcRoM-gwfxR9cp0y7ZAbQuG3 ${dataset}.tar.bz2
 else
-	echo "unknown dataset [Eurlex-4K | Wiki10-31K | AmazonCat-13K | Wiki-500K]"
+	echo "unknown dataset [ Eurlex-4K | Wiki10-31K ]"
 	exit
 fi
 
