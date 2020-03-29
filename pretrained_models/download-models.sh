@@ -25,7 +25,7 @@ function gdrive-get() {
 if [ ${dataset} == 'Eurlex-4K' ]; then
 	gdrive-get 13bF53xYimNYsdHGc_Jzgs6Tr094O96wM ${dataset}.tar.bz2
 elif [ ${dataset} == 'Wiki10-31K' ]; then
-	gdrive-get 13ljstQ5hkysbuwVL69t6CuZEdi9VBxDz ${dataset}.tar.bz2
+	gdrive-get 13EBKsc8JDe5KecMiruLBGw9osQXQZlvR ${dataset}.tar.bz2
 else
 	echo "unknown dataset [ Eurlex-4K | Wiki10-31K ]"
 	exit
