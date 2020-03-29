@@ -1,4 +1,4 @@
-# eXtreme Multi-label Text Classification with BERT
+# Transformer-XMC: Taming Pretrained Transformers for eXtreme Multi-label Text Classification
 
 This is a README for the experimental code in our paper
 >[X-BERT: eXtreme Multi-label Text Classification with BERT](https://arxiv.org/pdf/1905.02331.pdf)
@@ -20,6 +20,7 @@ This is a README for the experimental code in our paper
 	
 **Notice: the following examples are executed under the ```> (xbert-env)``` conda virtual environment
 
+
 ## Reproduce Evaulation Results in the Paper
 We demonstrate how to reproduce the evaluation results in our paper
 by downloading the raw dataset and pretrained models.
@@ -31,225 +32,64 @@ Change directory into ./datasets folder, download and unzip each dataset
 cd ./datasets
 bash download-data.sh Eurlex-4K
 bash download-data.sh Wiki10-31K
-bash download-data.sh AmazonCat-13K
-bash download-data.sh Wiki-500K
 cd ../
 ```
 
 Each dataset contains the following files
-- ```X.trn.npz, X.val.npz, X.tst.npz```: data tf-idf sparse matrix 
-- ```Y.trn.npz, Y.val.npz, Y.tst.npz```: label sparse matrix
-- ```L.elmo.npz, L.pifa.npz```: label embedding matrix
-- ```mlc2seq/{train,valid.test}.txt```: each line is label_ids \tab raw_text 
-- ```mlc2seq/label_vocab.txt```: each line is label_count \tab label_text
+- ```X.trn.npz, X.tst.npz```: instance's embedding matrix (either sparse TF-IDF or fine-tuned dense embedding)  
+- ```Y.trn.npz, Y.tst.npz```: instance-to-label assignment matrix
+- ```L.pifa.npz, L.pifa-neural.npz, L.text-emb.npz```: label's embedding matrix
+- ```train_text.txt, test_text.txt```: each line is raw_text
+- ```train_labels.txt, test_labels.txt```: each line is a seq of labels, seperated by whitespace
+- ```train.txt, test.txt```: each line is (label_1,...,label_k) \tab tf-idf features
   
-### Download Pretrained Models (Indexing codes, matcher models and ranker models)
+### Download Pretrained Models (Indexing codes, fine-tuned Transformer models)
 Change directory into ./pretrained_models folder, download and unzip models for each dataset
 	
 ```bash
 cd ./pretrained_models
 bash download-models.sh Eurlex-4K
 bash download-models.sh Wiki10-31K
-bash download-models.sh AmazonCat-13K
-bash download-models.sh Wiki-500K
 cd ../
 ```
 
-### Prediction and Evaluation Pipeline
-load indexing codes, generate predicted codes from pretrained matchers, and predict labels from pretrained rankers.
+### Evaluate Linear Models
+Given the provided indexing codes (label-to-cluster assignments), train/predict linear models, and evaluate with Precision/Recall@k:
 
 ```bash
-export DATASETS=Eurlex-4K
-bash scripts/run_linear_eval.sh ${DATASETS}
-bash scripts/run_xbert_eval.sh ${DATASETS}
-bash scripts/run_xttention_eval.sh ${DATASETS}
+export DATASET=Eurlex-4K
+export VERSION=v0
+bash eval_linear.sh ${DATASET} ${VERSION}
 ```
 
-- ```DATASETS```: the dataset name such as Eurlex-4K, Wiki10-31K, AmazonCat-13K, or Wiki-500K.
-	
-### Ensemble prediction and Evaluation
+- ```DATASET```: the dataset name such as Eurlex-4K, Wiki10-31K, AmazonCat-13K, or Wiki-500K.
+- ```v0```: instance embedding using sparse TF-IDF features
+- ```v1```: instance embedding using sparse TF-IDF features concatenate with dense fine-tuned XLNet embedding	
 
-``` bash
-python -m xbert.evaluator \
-  -y [path to Y.tst.npz] \
-  -e prediction-path [prediction-path ... ] 
-```
-
-For example, given the ranker prediction files (tst.pred.xbert.npz), 
-
-``` bash
-python -m xbert.evaluator \
-  -y datasets/Eurlex-4K/Y.tst.npz \
-  -e pretrained_models/Eurlex-4K/*/ranker/tst.pred.xbert.npz
-```
-
-which computes the metric for the X-BERT ensemble of the label_emb={elmo,pifa} and seed={0,1,2} combinations.
+The evaluaiton results should located at
+``` ./results_linear/${DATASET}.${VERSION}.txt ```
 
 
-
-## Pipeline for running X-BERT on a new dataset
-
-### Generate label embedding
-We support ELMo and PIFA label embedding given the file label_vocab.txt.
+### Evaluate Fine-tuned Transformer-XMC Models
+Given the provided indexing codes (label-to-cluster assignments) and the fine-tuned Transformer models, train/predict ranker of the Transformer-XMC framework, and evaluate with Precision/Recall@k:
 
 ```bash
-cd ./datasets/
-python label_embedding.py --dataset ${DATASET} --embed-type ${LABEL_EMB}
-cd ../	
+export DATASET=Eurlex-4K
+bash eval_transformer.sh ${DATASET}
 ```
 
-- `DATASETS`: the customized dataset name which contains the necessary files as described in [download dataset section]
-- `LABEL_EMB`: currently support either elmo or pifa
+- ```DATASET```: the dataset name such as Eurlex-4K, Wiki10-31K, AmazonCat-13K, or Wiki-500K.	
 
-### Semantic Indexing and Linear Ranker
-Before training deep neural matcher, we first obtain indexed label codes and linear ranker.
-The following example assume to have a similar structure as the `pretrained_models` folder.
-
-#### Semantic Label Indexing
-An example usage would be: 
-
-```bash
-OUTPUT_DIR=save_models/${DATASET}/${LABEL_EMB}-a${ALGO}-s${SEED}
-mkdir -p ${OUTPUT_DIR}/indexer
-python -m xbert.indexer \
-  -i datasets/${DATASET}/L.${LABEL_EMB}.npz \
-  -o ${OUTPUT_DIR}/indexer \
-  -d ${DEPTH} --algo ${ALGO} --seed ${SEED} \
-  --max-iter 20
-```
-
-- `ALGO`: clustering algorithm. 0 for KMEANS, 5 for SKMEANS
-- `DEPTH`: The depth of hierarchical 2-means
-- `SEED`: random seed
-
-### Neural Matching via XBERT or Xttention
-#### Create Data Binary as Preprocessing
-Before training, we need to generate preprocessed data as binary pickle files.
-	
-```bash
-OUTPUT_DIR=save_models/${DATASET}/${LABEL_EMB}-a${ALGO}-s${SEED}
-mkdir -p $OUTPUT_DIR/data-bin-${MATCHER}
-CUDA_VISIBLE_DEVICES=${GPUS} python -m xbert.preprocess \
-  -m ${MATCHER} \
-  -i datasets/${DATASET} \
-  -c ${OUTPUT_DIR}/indexer/code.npz \
-  -o ${OUTPUT_DIR}/data-bin-${MATCHER}
-```
-
--`GPUS`: the available gpu_id
--`MATCHER`: currently support `xttention` or `xbert`
-
-#### Training XBERT
-Set hyper-parameters properly, an example would be
-``` bash
-GPUS=0,1,2,3,4,5
-MATCHER=xbert
-TRAIN_BATCH_SIZE=36
-EVAL_BATCH_SIZE=64
-LOG_INTERVAL=1000
-EVAL_INTERVAL=10000
-NUM_TRAIN_EPOCHS=12
-LEARNING_RATE=5e-5
-WARMUP_RATE=0.1
-```
-Users can also check `scripts/run_xbert.sh` to see the detailed setting for each datasets used in the paper.
-
-We are now ready to run the xbert models:
-
-```bash
-OUTPUT_DIR=save_models/${DATASET}/${LABEL_EMB}-a${ALGO}-s${SEED}
-mkdir -p ${OUTPUT_DIR}/matcher/${MATCHER}
-CUDA_VISIBLE_DEVICES=${GPUS} python -u -m xbert.matcher.bert \
-  -i ${OUTPUT_DIR}/data-bin-${MATCHER}/data_dict.pt \
-  -o ${OUTPUT_DIR}/matcher/${MATCHER} \
-  --bert_model bert-base-uncased \
-  --do_train --do_eval --stop_by_dev \
-  --learning_rate ${LEARNING_RATE} \
-  --warmup_proportion ${WARMUP_RATE} \
-  --train_batch_size ${TRAIN_BATCH_SIZE} \
-  --eval_batch_size ${EVAL_BATCH_SIZE} \
-  --num_train_epochs ${NUM_TRAIN_EPOCHS} \
-  --log_interval ${LOG_INTERVAL} \
-  --eval_interval ${EVAL_INTERVAL} \
-  > ${OUTPUT_DIR}/matcher/${MATCHER}.log
-```
+The evaluaiton results should located at
+``` ./results_transformer-large/${DATASET}/feat-joint_neg-yes_noop.txt ```
 
 
-#### Training Xttention
-Set hyper-parameters properly, an example would be
-``` bash
-GPUS=0
-MATCHER=xttention
-TRAIN_BATCH_SIZE=128
-LOG_INTERVAL=100
-EVAL_INTERVAL=1000
-NUM_TRAIN_EPOCHS=10
-```
-Users can also check `scripts/run_xttention.sh` to see the detailed setting for each datasets used in the paper.
-
-We are now ready to run the xttention models:
-
-```bash
-OUTPUT_DIR=save_models/${DATASET}/${LABEL_EMB}-a${ALGO}-s${SEED}
-mkdir -p ${OUTPUT_DIR}/matcher/${MATCHER}
-CUDA_VISIBLE_DEVICES=${GPUS} python -u -m xbert.matcher.attention \
-  -i ${OUTPUT_DIR}/data-bin-${MATCHER}/data_dict.pt \
-  -o ${OUTPUT_DIR}/matcher/${MATCHER} \
-  --do_train --do_eval --cuda --stop_by_dev \
-  --train_batch_size ${TRAIN_BATCH_SIZE} \
-  --num_train_epochs ${NUM_TRAIN_EPOCHS} \
-  --log_interval ${LOG_INTERVAL} \
-  --eval_interval ${EVAL_INTERVAL} \
-  > ${OUTPUT_DIR}/matcher/${MATCHER}.log
-```	
-
-#### Predicting Indices 
-Predict the indices using trained XBERT or Xttention model.
-``` bash
-OUTPUT_DIR=save_models/${DATASET}/${LABEL_EMB}-a${ALGO}-s${SEED}
-CUDA_VISIBLE_DEVICES=${GPUS} python -u -m xbert.matcher.bert \
-  -i ${OUTPUT_DIR}/data-bin-${MATCHER}/data_dict.pt \
-  -o ${OUTPUT_DIR}/matcher/${MATCHER} \
-  --bert_model bert-base-uncased \
-  --do_eval \
-  --init_checkpoint_dir ${OUTPUT_DIR}/matcher/${MATCHER}
-```
-The prediction output will be stored in 
-```bash
-${OUTPUT_DIR}/matcher/${MATCHER}/C_eval_pred.npz
-```
-
-### Ranking
-#### Linear Ranker training
-An example usage would be:
-
-```bash
-OUTPUT_DIR=save_models/${DATASET}/${LABEL_EMB}-a${ALGO}-s${SEED}
-mkdir -p $OUTPUT_DIR/ranker
-python -m xbert.ranker train \
-  -x datasets/${DATASET}/X.trn.npz \
-  -y datasets/${DATASET}/Y.trn.npz \
-  -c ${OUTPUT_DIR}/indexer/code.npz \
-  -o ${OUTPUT_DIR}/ranker
-```
-
-#### Linear Ranker Prediction
-An example usage would be:
-
-```bash
-OUTPUT_DIR=save_models/${DATASET}/${LABEL_EMB}-a${ALGO}-s${SEED}
-mkdir -p $OUTPUT_DIR/ranker
-python -m xbert.ranker predict \
-  -m ${OUTPUT_DIR}/ranker \
-  -x datasets/${DATASET}/X.tst.npz \
-  -y datasets/${DATASET}/Y.tst.npz \
-  -c ${OUTPUT_DIR}/matcher/${MATCHER}/C_eval_pred.npz \
-  -o ${OUTPUT_DIR}/ranker/tst.prediction.npz
-```
+## Pipeline for running Transformer-XMC on a new dataset
+**To be released. Stay-tuned!
 
 ## Acknowledge
 
 Some portions of this repo is borrowed from the following repos:
-- [pytorch-pretrained-BERT](https://github.com/huggingface/pytorch-pretrained-BERT)
+- [transformers(v2.2.0)](https://github.com/huggingface/transformers)
 - [liblinear](https://github.com/cjlin1/liblinear)
 - [TRMF](https://github.com/rofuyu/exp-trmf-nips16)
