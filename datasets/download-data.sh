@@ -23,19 +23,11 @@ function gdrive-get() {
 }
 
 if [ ${dataset} == 'Eurlex-4K' ]; then
-	gdrive-get 1iPGbr5-z2LogtMFG1rwwekV_aTubvAb2 ${dataset}.tar.gz
+	gdrive-get 1JdkkIM4hpQyOiiHX7Rp1ymu2L10r1xYg ${dataset}.tar.gz
 elif [ ${dataset} == 'Wiki10-31K' ]; then
-	gdrive-get 1Tv4MHQzDWTUC9hRFihRhG8_jt1h0VhnR ${dataset}.tar.gz
-elif [ ${dataset} == 'AmazonCat-13K' ]; then
-	gdrive-get 1VwHAbri6y6oh8lkpZ6sSY_b1FRNnCLFL ${dataset}.tar.gz
-elif [ ${dataset} == 'Amazon-670K' ]; then
-	gdrive-get 1Xd4BPFy1RPmE7MEXMu77E2_xWOhR1pHW ${dataset}.tar.gz
-elif [ ${dataset} == 'Wiki-500K' ]; then
-	gdrive-get 1bGEcCagh8zaDV0ZNGsgF0QtwjcAm0Afk ${dataset}.tar.gz
-elif [ ${dataset} == 'Amazon-3M' ]; then
-	gdrive-get 187vt5vAkGI2mS2WOMZ2Qv48YKSjNbQv4 ${dataset}.tar.gz
+	gdrive-get 1y2FnzPE_3zLsQkKbtA4uGTgFGFwkjtN2 ${dataset}.tar.gz
 else
-	echo "unknown dataset [Eurlex-4K | Wiki10-31K | AmazonCat-13K | Amazon-670K | Wiki-500K | Amazon-3M]"
+	echo "unknown dataset [ Eurlex-4K | Wiki10-31K ]"
 	exit
 fi
 
