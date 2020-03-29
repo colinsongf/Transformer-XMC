@@ -1,0 +1,20 @@
+Namespace(ensemble=True, input_inst_label='datasets/Eurlex-4K/Y.tst.npz', pred_path=['pretrained_models/Eurlex-4K/pifa-neural-a5-s0/ranker_linear-v1/tst.pred.npz', 'pretrained_models/Eurlex-4K/pifa-neural-a5-s1/ranker_linear-v1/tst.pred.npz', 'pretrained_models/Eurlex-4K/pifa-neural-a5-s2/ranker_linear-v1/tst.pred.npz'])
+==== Evaluation on pretrained_models/Eurlex-4K/pifa-neural-a5-s0/ranker_linear-v1/tst.pred.npz
+prec   = 82.98 76.27 70.37 64.42 58.87 53.64 48.87 44.67 41.03 37.90
+recall = 16.84 30.61 41.81 50.55 57.24 62.21 65.83 68.61 70.72 72.51
+==== Evaluation on pretrained_models/Eurlex-4K/pifa-neural-a5-s1/ranker_linear-v1/tst.pred.npz
+prec   = 83.03 76.34 70.22 64.36 58.84 53.62 48.86 44.62 41.03 37.82
+recall = 16.81 30.68 41.77 50.48 57.24 62.20 65.81 68.50 70.71 72.31
+==== Evaluation on pretrained_models/Eurlex-4K/pifa-neural-a5-s2/ranker_linear-v1/tst.pred.npz
+prec   = 83.18 76.11 70.13 64.46 58.98 53.61 48.77 44.57 40.92 37.81
+recall = 16.86 30.50 41.71 50.61 57.40 62.19 65.70 68.45 70.54 72.33
+==== Evaluations of Ensembles of All Predictions ====
+ens: average
+prec   = 83.67 76.88 70.97 64.76 59.38 54.04 49.19 45.03 41.36 38.21
+recall = 16.95 30.87 42.20 50.83 57.71 62.63 66.23 69.14 71.29 73.09
+ens: rank_average
+prec   = 83.67 76.74 70.84 64.82 59.38 54.16 49.45 45.16 41.44 38.26
+recall = 16.96 30.79 42.12 50.87 57.71 62.81 66.62 69.33 71.43 73.18
+ens: round_robin
+prec   = 82.98 76.48 70.54 64.39 59.00 53.95 49.17 44.79 41.24 38.17
+recall = 16.84 30.70 41.96 50.52 57.38 62.57 66.26 68.81 71.11 73.00

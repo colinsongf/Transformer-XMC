@@ -1,0 +1,38 @@
+Namespace(ensemble=True, input_inst_label='datasets/Wiki10-31K/Y.tst.npz', pred_path=['pretrained_models/Wiki10-31K/pifa-a5-s0/ranker_bert-large-cased-whole-word-masking_seq-128/tst.pred.npz', 'pretrained_models/Wiki10-31K/pifa-a5-s0/ranker_roberta-large_seq-128/tst.pred.npz', 'pretrained_models/Wiki10-31K/pifa-a5-s0/ranker_xlnet-large-cased_seq-128/tst.pred.npz', 'pretrained_models/Wiki10-31K/pifa-neural-a5-s0/ranker_bert-large-cased-whole-word-masking_seq-128/tst.pred.npz', 'pretrained_models/Wiki10-31K/pifa-neural-a5-s0/ranker_roberta-large_seq-128/tst.pred.npz', 'pretrained_models/Wiki10-31K/pifa-neural-a5-s0/ranker_xlnet-large-cased_seq-128/tst.pred.npz', 'pretrained_models/Wiki10-31K/text-emb-a5-s0/ranker_bert-large-cased-whole-word-masking_seq-128/tst.pred.npz', 'pretrained_models/Wiki10-31K/text-emb-a5-s0/ranker_roberta-large_seq-128/tst.pred.npz', 'pretrained_models/Wiki10-31K/text-emb-a5-s0/ranker_xlnet-large-cased_seq-128/tst.pred.npz'])
+==== Evaluation on pretrained_models/Wiki10-31K/pifa-a5-s0/ranker_bert-large-cased-whole-word-masking_seq-128/tst.pred.npz
+prec   = 86.47 81.53 76.33 71.18 66.39 62.29 58.70 55.61 52.88 50.27
+recall = 5.18 9.63 13.38 16.45 19.02 21.25 23.23 25.02 26.69 28.11
+==== Evaluation on pretrained_models/Wiki10-31K/pifa-a5-s0/ranker_roberta-large_seq-128/tst.pred.npz
+prec   = 87.50 82.30 76.81 71.64 66.98 62.93 59.27 56.18 53.40 50.79
+recall = 5.25 9.73 13.47 16.57 19.21 21.52 23.51 25.33 26.96 28.37
+==== Evaluation on pretrained_models/Wiki10-31K/pifa-a5-s0/ranker_xlnet-large-cased_seq-128/tst.pred.npz
+prec   = 87.70 82.66 77.35 72.27 67.65 63.79 60.21 57.09 54.22 51.64
+recall = 5.27 9.78 13.57 16.73 19.41 21.81 23.86 25.76 27.38 28.87
+==== Evaluation on pretrained_models/Wiki10-31K/pifa-neural-a5-s0/ranker_bert-large-cased-whole-word-masking_seq-128/tst.pred.npz
+prec   = 86.14 80.84 75.52 70.34 65.98 61.97 58.44 55.48 52.63 50.02
+recall = 5.15 9.53 13.24 16.28 18.92 21.21 23.18 25.03 26.60 27.99
+==== Evaluation on pretrained_models/Wiki10-31K/pifa-neural-a5-s0/ranker_roberta-large_seq-128/tst.pred.npz
+prec   = 86.68 80.99 75.47 70.76 66.39 62.58 59.20 55.93 53.20 50.61
+recall = 5.18 9.55 13.20 16.37 19.04 21.39 23.47 25.22 26.88 28.32
+==== Evaluation on pretrained_models/Wiki10-31K/pifa-neural-a5-s0/ranker_xlnet-large-cased_seq-128/tst.pred.npz
+prec   = 86.97 81.87 76.71 71.96 67.63 63.83 60.21 57.13 54.26 51.64
+recall = 5.21 9.67 13.43 16.67 19.40 21.82 23.86 25.76 27.41 28.87
+==== Evaluation on pretrained_models/Wiki10-31K/text-emb-a5-s0/ranker_bert-large-cased-whole-word-masking_seq-128/tst.pred.npz
+prec   = 87.15 81.67 75.89 70.51 65.62 61.31 57.56 54.18 51.10 48.14
+recall = 5.20 9.62 13.26 16.26 18.75 20.86 22.70 24.29 25.65 26.76
+==== Evaluation on pretrained_models/Wiki10-31K/text-emb-a5-s0/ranker_roberta-large_seq-128/tst.pred.npz
+prec   = 87.03 82.04 76.29 71.02 66.06 61.87 58.09 54.68 51.57 48.68
+recall = 5.19 9.68 13.37 16.40 18.89 21.07 22.92 24.53 25.92 27.07
+==== Evaluation on pretrained_models/Wiki10-31K/text-emb-a5-s0/ranker_xlnet-large-cased_seq-128/tst.pred.npz
+prec   = 87.44 82.16 76.55 71.19 66.46 62.32 58.66 55.24 52.06 49.16
+recall = 5.22 9.69 13.38 16.43 18.98 21.18 23.14 24.75 26.13 27.29
+==== Evaluations of Ensembles of All Predictions ====
+ens: average
+prec   = 88.89 84.19 78.66 73.33 68.94 64.91 61.52 58.46 55.80 53.33
+recall = 5.33 9.94 13.78 16.93 19.76 22.19 24.38 26.34 28.15 29.79
+ens: rank_average
+prec   = 88.78 84.05 79.06 73.84 69.39 65.43 61.80 58.71 55.92 53.31
+recall = 5.32 9.93 13.87 17.09 19.91 22.36 24.48 26.45 28.21 29.76
+ens: round_robin
+prec   = 86.47 81.92 76.78 71.67 66.90 62.88 59.43 56.53 53.86 51.46
+recall = 5.18 9.69 13.48 16.57 19.17 21.45 23.53 25.41 27.14 28.69
