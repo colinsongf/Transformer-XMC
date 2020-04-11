@@ -1,0 +1,20 @@
+Namespace(ensemble=True, input_inst_label='datasets/Wiki-500K/Y.tst.npz', pred_path=['pretrained_models/Wiki-500K/pifa-neural-a5-s0/ranker_linear-v0/tst.pred.npz', 'pretrained_models/Wiki-500K/pifa-neural-a5-s1/ranker_linear-v0/tst.pred.npz', 'pretrained_models/Wiki-500K/pifa-neural-a5-s2/ranker_linear-v0/tst.pred.npz'])
+==== Evaluation on pretrained_models/Wiki-500K/pifa-neural-a5-s0/ranker_linear-v0/tst.pred.npz
+prec   = 66.94 55.95 47.96 42.06 37.50 33.86 30.86 28.36 26.25 24.43
+recall = 21.50 32.67 39.46 44.18 47.70 50.43 52.62 54.45 56.02 57.34
+==== Evaluation on pretrained_models/Wiki-500K/pifa-neural-a5-s1/ranker_linear-v0/tst.pred.npz
+prec   = 66.81 55.86 47.87 41.97 37.43 33.79 30.81 28.31 26.20 24.38
+recall = 21.45 32.61 39.37 44.08 47.58 50.31 52.50 54.31 55.88 57.18
+==== Evaluation on pretrained_models/Wiki-500K/pifa-neural-a5-s2/ranker_linear-v0/tst.pred.npz
+prec   = 66.70 55.73 47.81 41.93 37.39 33.75 30.78 28.29 26.18 24.37
+recall = 21.44 32.54 39.32 44.03 47.54 50.26 52.45 54.29 55.85 57.16
+==== Evaluations of Ensembles of All Predictions ====
+ens: average
+prec   = 68.19 56.98 48.84 42.88 38.35 34.75 31.81 29.35 27.24 25.41
+recall = 21.98 33.33 40.23 45.10 48.87 51.90 54.42 56.55 58.36 59.91
+ens: rank_average
+prec   = 68.04 57.06 49.13 43.26 38.70 35.05 32.04 29.49 27.30 25.40
+recall = 21.89 33.38 40.51 45.57 49.38 52.43 54.92 56.96 58.63 60.01
+ens: round_robin
+prec   = 66.94 56.51 48.69 42.86 38.31 34.67 31.68 29.17 27.05 25.23
+recall = 21.50 33.21 40.35 45.38 49.13 52.10 54.50 56.49 58.20 59.67
