@@ -32,6 +32,8 @@ Change directory into ./datasets folder, download and unzip each dataset
 cd ./datasets
 bash download-data.sh Eurlex-4K
 bash download-data.sh Wiki10-31K
+bash download-data.sh AmazonCat-13K
+bash download-data.sh Wiki-500K
 cd ../
 ```
 
@@ -50,6 +52,8 @@ Change directory into ./pretrained_models folder, download and unzip models for 
 cd ./pretrained_models
 bash download-models.sh Eurlex-4K
 bash download-models.sh Wiki10-31K
+bash download-models.sh AmazonCat-13K
+bash download-models.sh Wiki-500K
 cd ../
 ```
 
